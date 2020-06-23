@@ -145,7 +145,6 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
     {
         Serial.println(command);
     }
-
     ChatResponses responses;
     responses.error = true;
 
@@ -164,6 +163,8 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
             const char* pageToken = doc["nextPageToken"];
             strcpy(nextPageToken, pageToken);
             responses.pollingIntervalMillis = doc["pollingIntervalMillis"].as<long>();
+            responses.totalResults = doc["pageInfo"]["totalResults"].as<int>();
+            responses.resultsPerPage = doc["pageInfo"]["resultsPerPage"].as<int>();
             JsonArray items = doc["items"];
             for(int i = 0; i < items.size(); i++){
                 

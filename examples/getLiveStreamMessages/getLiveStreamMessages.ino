@@ -61,75 +61,79 @@ unsigned long delayBetweenRequests = 30000; // Time between requests (1 minute)
 unsigned long requestDueTime;               //time when request due
 
 LiveStreamDetails details;
-
+String liveId;
 void setup() {
 
   Serial.begin(115200);
 
-    // Set WiFi to station mode and disconnect from an AP if it was Previously
-    // connected
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    delay(100);
+  // Set WiFi to station mode and disconnect from an AP if it was Previously
+  // connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
 
-    // Attempt to connect to Wifi network:
-    Serial.print("Connecting Wifi: ");
-    Serial.println(ssid);
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        Serial.print(".");
-        delay(500);
-    }
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    IPAddress ip = WiFi.localIP();
-    Serial.println(ip);
+  // Attempt to connect to Wifi network:
+  Serial.print("Connecting Wifi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  IPAddress ip = WiFi.localIP();
+  Serial.println(ip);
 
-    //client.setFingerprint(SLACK_FINGERPRINT);
-    client.setInsecure();
-    // If you want to enable some extra debugging
-    //ytVideo._debug = true;
+  //client.setFingerprint(SLACK_FINGERPRINT);
+  client.setInsecure();
+  // If you want to enable some extra debugging
+  ytVideo._debug = true;
 
-    char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
-    if(videoId != NULL){
-        Serial.print("Channel is live now with Video ID: ");
-        Serial.println(videoId);
+  char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
+  if (videoId != NULL) {
+    Serial.print("Channel is live now with Video ID: ");
+    Serial.println(videoId);
 
-        details = ytVideo.getLiveChatId(videoId);
-        if(!details.error){
-            Serial.print("concurrent Viewers: ");
-            Serial.println(details.concurrentViewers);
-            Serial.print("Chat Id: ");
-            Serial.println(details.activeLiveChatId);
-        } else {
-            Serial.println("Error getting Live Stream Details");
-        }
+    details = ytVideo.getLiveChatId(videoId);
+    if (!details.error) {
+      Serial.print("concurrent Viewers: ");
+      Serial.println(details.concurrentViewers);
+      Serial.print("Chat Id: ");
+      Serial.println(details.activeLiveChatId);
+      liveId = String(details.activeLiveChatId);
     } else {
-        Serial.println("Channel does not appear to be live");
+      Serial.println("Error getting Live Stream Details");
     }
+  } else {
+    Serial.println("Channel does not appear to be live");
+  }
 }
 
-void printMessage(ChatMessage message){
-    Serial.print(message.displayName);
-    if(message.isMod){
-        Serial.print("(mod)");
-    }
-    Serial.print(": ");
-    Serial.println(message.displayMessage);
+void printMessage(ChatMessage message) {
+  Serial.print(message.displayName);
+  if (message.isMod) {
+    Serial.print("(mod)");
+  }
+  Serial.print(": ");
+  Serial.println(message.displayMessage);
 }
 
 void loop() {
   if (details.activeLiveChatId != "") {
     if (millis() > requestDueTime)
     {
-        Serial.println(details.activeLiveChatId);
-      ChatResponses responses = ytVideo.getChatMessages(details.activeLiveChatId);
+      //Serial.println(details.activeLiveChatId);
+      Serial.println(liveId);
+      //ChatResponses responses = ytVideo.getChatMessages(details.activeLiveChatId);
+      ChatResponses responses = ytVideo.getChatMessages((char *)liveId.c_str());
       if (!responses.error) {
         for (int i = 0; i < responses.resultsPerPage; i++) {
           printMessage(responses.messages[i]);
         }
+        Serial.println("done");
         requestDueTime = millis() + responses.pollingIntervalMillis;
       } else {
         Serial.println("There was an error");
