@@ -22,6 +22,7 @@ ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, char *apiToken)
 {
     this->client = &client;
     this->_apiToken = apiToken;
+    nextPageToken[0] = 0;
 }
 
 int ArduinoYoutubeVideoApi::makeGetRequest(char *command)
@@ -139,8 +140,15 @@ LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
 }
 
 ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *part){
-    char command[250];
+    char command[300];
     sprintf(command, liveChatMessagesEndpoint, liveChatId, part, YOUTUBE_MAX_RESULTS, _apiToken);
+
+    if(nextPageToken[0] != 0){
+        char nextPageParam[50];
+        sprintf(nextPageParam, "&pageToken=%s", nextPageToken);
+        strcat(command, nextPageParam);
+    }
+
     if (_debug)
     {
         Serial.println(command);

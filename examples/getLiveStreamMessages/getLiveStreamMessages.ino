@@ -122,7 +122,7 @@ void printMessage(ChatMessage message) {
 }
 
 void loop() {
-  if (details.activeLiveChatId != "") {
+  if (liveId.length() > 0) {
     if (millis() > requestDueTime)
     {
       //Serial.println(details.activeLiveChatId);
@@ -134,7 +134,7 @@ void loop() {
           printMessage(responses.messages[i]);
         }
         Serial.println("done");
-        requestDueTime = millis() + responses.pollingIntervalMillis;
+        requestDueTime = millis() + responses.pollingIntervalMillis + 500;
       } else {
         Serial.println("There was an error");
         requestDueTime = millis() + 5000;
