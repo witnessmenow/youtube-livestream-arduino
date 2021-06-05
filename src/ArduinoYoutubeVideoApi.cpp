@@ -23,6 +23,7 @@ ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, char *apiToken)
     this->client = &client;
     this->_apiToken = apiToken;
     nextPageToken[0] = 0;
+    initStructs();
 }
 
 int ArduinoYoutubeVideoApi::makeGetRequest(char *command)
@@ -74,6 +75,7 @@ char* ArduinoYoutubeVideoApi::getLiveVideoId(char *channelId){
 
     // Get from https://arduinojson.org/v6/assistant/
     const size_t bufferSize = JSON_ARRAY_SIZE(1) + 2*JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + 250;
+
     if (makeGetRequest(command) == 200)
     {
         // Allocate DynamicJsonDocument
@@ -107,26 +109,32 @@ LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
         Serial.println(command);
     }
 
-    LiveStreamDetails details;
-    details.error = true;
+    liveStreamDetails.error = true;
 
     // Get from https://arduinojson.org/v6/assistant/
     const size_t bufferSize = JSON_ARRAY_SIZE(1) + JSON_OBJECT_SIZE(2) + 3*JSON_OBJECT_SIZE(4) + 440;
-    if (makeGetRequest(command) == 200)
+    int statusCode = makeGetRequest(command);
+    if (statusCode == 200)
     {
         // Allocate DynamicJsonDocument
         DynamicJsonDocument doc(bufferSize);
 
         // Parse JSON object
         DeserializationError error = deserializeJson(doc, *client);
+        serializeJson(doc, Serial);
         if (!error)
         {
-            details.error = false;
+            liveStreamDetails.error = false;
 
             char* videoId = (char *) doc["items"][0]["id"]["videoId"].as<char *>();
             JsonObject liveStreamingDetails = doc["items"][0]["liveStreamingDetails"];
-            details.concurrentViewers  = (char *) liveStreamingDetails["concurrentViewers"].as<char *>();
-            details.activeLiveChatId = (char *) liveStreamingDetails["activeLiveChatId"].as<char *>();
+
+
+            strncpy(liveStreamDetails.concurrentViewers, liveStreamingDetails["concurrentViewers"].as<char *>(), YOUTUBE_VIEWERS_CHAR_LENGTH);
+            liveStreamDetails.concurrentViewers[YOUTUBE_VIEWERS_CHAR_LENGTH -1] = '\0';
+
+            strncpy(liveStreamDetails.activeLiveChatId,  liveStreamingDetails["activeLiveChatId"].as<char *>(), YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH);
+            liveStreamDetails.activeLiveChatId[YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH -1] = '\0';
 
         }
         else
@@ -134,14 +142,26 @@ LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
             Serial.print(F("deserializeJson() failed with code "));
             Serial.println(error.c_str());
         }
+    } else {
+        Serial.print("Not 200: ");
+        Serial.println(statusCode);
+
+        while (client->available() )
+        {
+            char c = 0;
+            client->readBytes(&c, 1);
+            Serial.print(c);
+
+        }
+
     }
     closeClient();
-    return details;
+    return liveStreamDetails;
 }
 
 ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *part){
     char command[300];
-    sprintf(command, liveChatMessagesEndpoint, liveChatId, part, YOUTUBE_MAX_RESULTS, _apiToken);
+    sprintf(command, liveChatMessagesEndpoint, liveChatId, part, _apiToken);
 
     if(nextPageToken[0] != 0){
         char nextPageParam[50];
@@ -153,33 +173,58 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
     {
         Serial.println(command);
     }
-    ChatResponses responses;
-    responses.error = true;
+
+    chatResponses.error = true;
 
     // Get from https://arduinojson.org/v6/assistant/
-    const size_t bufferSize = 15000;
+    const size_t bufferSize = 20000;
     if (makeGetRequest(command) == 200)
     {
+        StaticJsonDocument<192> filter;
+        filter["nextPageToken"] = true;
+        filter["pollingIntervalMillis"] = true;
+
+        JsonObject filter_pageInfo = filter.createNestedObject("pageInfo");
+        filter_pageInfo["totalResults"] = true;
+        filter_pageInfo["resultsPerPage"] = true;
+
+        JsonObject filter_items_0 = filter["items"].createNestedObject();
+        filter_items_0["snippet"]["displayMessage"] = true;
+
+        JsonObject filter_items_0_authorDetails = filter_items_0.createNestedObject("authorDetails");
+        filter_items_0_authorDetails["displayName"] = true;
+        filter_items_0_authorDetails["isChatModerator"] = true;
+
         // Allocate DynamicJsonDocument
         DynamicJsonDocument doc(bufferSize);
 
         // Parse JSON object
-        DeserializationError error = deserializeJson(doc, *client);
+        DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
         if (!error)
         {
-            responses.error = false;
+            chatResponses.error = false;
             const char* pageToken = doc["nextPageToken"];
             strcpy(nextPageToken, pageToken);
-            responses.pollingIntervalMillis = doc["pollingIntervalMillis"].as<long>();
-            responses.totalResults = doc["pageInfo"]["totalResults"].as<int>();
-            responses.resultsPerPage = doc["pageInfo"]["resultsPerPage"].as<int>();
+            chatResponses.pollingIntervalMillis = doc["pollingIntervalMillis"].as<long>();
+            chatResponses.totalResults = doc["pageInfo"]["totalResults"].as<int>();
+            chatResponses.resultsPerPage = doc["pageInfo"]["resultsPerPage"].as<int>();
             JsonArray items = doc["items"];
-            for(int i = 0; i < items.size(); i++){
+            Serial.print("Got Here");
+            int numMessages = YOUTUBE_MAX_RESULTS > items.size() ? items.size() : YOUTUBE_MAX_RESULTS;
+            for(int i = 0; i < numMessages ; i++){
+                //numMessages ++;
+                int reverseIndex = items.size() - 1 - i;
+                serializeJson(items[reverseIndex], Serial);
                 
-                responses.messages[i].displayMessage = (char *) items[i]["snippet"]["displayMessage"].as<char *>();
-                responses.messages[i].displayName = (char *) items[i]["authorDetails"]["displayName"].as<char *>();
-                responses.messages[i].isMod = items[i]["authorDetails"]["isChatModerator"].as<bool>();
+                strncpy(chatResponses.messages[i].displayMessage,  items[reverseIndex]["snippet"]["displayMessage"].as<char *>(), YOUTUBE_MSG_CHAR_LENGTH);
+                chatResponses.messages[i].displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+
+                strncpy(chatResponses.messages[i].displayName, items[reverseIndex]["authorDetails"]["displayName"].as<char *>(), YOUTUBE_NAME_CHAR_LENGTH);
+                chatResponses.messages[i].displayName[YOUTUBE_NAME_CHAR_LENGTH -1] = '\0';
+                chatResponses.messages[i].isMod = items[reverseIndex]["authorDetails"]["isChatModerator"].as<bool>();
             }
+
+            chatResponses.numMessages = numMessages;
 
         }
         else
@@ -189,7 +234,7 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
         }
     }
     closeClient();
-    return responses;
+    return chatResponses;
 }
 
 
@@ -239,4 +284,28 @@ void ArduinoYoutubeVideoApi::closeClient()
         }
         client->stop();
     }
+}
+
+void ArduinoYoutubeVideoApi::initStructs()
+{
+    for(int i = 0; i < YOUTUBE_MAX_RESULTS; i++){
+        chatResponses.messages[i].displayMessage = (char *)malloc(YOUTUBE_MSG_CHAR_LENGTH);
+        chatResponses.messages[i].displayName = (char *)malloc(YOUTUBE_NAME_CHAR_LENGTH);
+    }
+
+    liveStreamDetails.concurrentViewers = (char *)malloc(YOUTUBE_VIEWERS_CHAR_LENGTH);
+    liveStreamDetails.activeLiveChatId = (char *)malloc(YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH);
+
+}
+
+// Not sure why this would ever be needed, but sure why not.
+void ArduinoYoutubeVideoApi::destroyStructs()
+{
+    for(int i = 0; i < YOUTUBE_MAX_RESULTS; i++){
+        free(chatResponses.messages[i].displayMessage);
+        free(chatResponses.messages[i].displayName);
+    }
+
+    free(liveStreamDetails.concurrentViewers);
+    free(liveStreamDetails.activeLiveChatId);
 }

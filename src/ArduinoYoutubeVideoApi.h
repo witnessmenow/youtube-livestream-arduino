@@ -30,6 +30,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 #define YOUTUBE_MAX_RESULTS 5
 
+#define YOUTUBE_MSG_CHAR_LENGTH 100 //Increase if MSG are being cut off
+#define YOUTUBE_NAME_CHAR_LENGTH 50
+#define YOUTUBE_VIEWERS_CHAR_LENGTH 20
+#define YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH 80
+
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
 
@@ -53,6 +58,7 @@ struct ChatResponses
     int totalResults;
     int resultsPerPage;
     long pollingIntervalMillis;
+    int numMessages;
     bool error;
 };
 
@@ -65,9 +71,11 @@ class ArduinoYoutubeVideoApi
     LiveStreamDetails getLiveChatId(char *videoId);
     ChatResponses getChatMessages(char *liveChatId, char *part = "id,snippet,authorDetails");
     int portNumber = 443;
-    bool _debug = false;
+    bool _debug = true;
     Client *client;
     char nextPageToken[50];
+    void initStructs();
+    void destroyStructs();
 
   private:
     char *_apiToken;
@@ -75,7 +83,8 @@ class ArduinoYoutubeVideoApi
     void skipHeaders();
     void closeClient();
 
-
+    LiveStreamDetails liveStreamDetails;
+    ChatResponses chatResponses;
     const char *searchEndpointAndParams = 
         R"(/youtube/v3/search?eventType=live&part=id&channelId=%s&type=video&key=%s&maxResults=1)"
     ;
@@ -85,7 +94,7 @@ class ArduinoYoutubeVideoApi
     ;
 
     const char *liveChatMessagesEndpoint = 
-        R"(/youtube/v3/liveChat/messages?liveChatId=%s&part=%s&maxResults=%d&key=%s)"
+        R"(/youtube/v3/liveChat/messages?liveChatId=%s&part=%s&key=%s)"
     ;
 
 };
