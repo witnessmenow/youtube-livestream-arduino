@@ -18,7 +18,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 #include "ArduinoYoutubeVideoApi.h"
 
-ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, char *apiToken)
+ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, const char *apiToken)
 {
     this->client = &client;
     this->_apiToken = apiToken;
@@ -26,11 +26,11 @@ ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, char *apiToken)
     initStructs();
 }
 
-int ArduinoYoutubeVideoApi::makeGetRequest(char *command)
+int ArduinoYoutubeVideoApi::makeGetRequest(const char *command, const char *host, const char *accept, const char *cookie)
 {
     client->flush();
     client->setTimeout(YOUTUBE_TIMEOUT);
-    if (!client->connect(YOUTUBE_VIDEO_HOST, portNumber))
+    if (!client->connect(host, portNumber))
     {
         Serial.println(F("Connection failed"));
         return false;
@@ -46,9 +46,19 @@ int ArduinoYoutubeVideoApi::makeGetRequest(char *command)
 
     //Headers
     client->print(F("Host: "));
-    client->println(YOUTUBE_VIDEO_HOST);
+    client->println(host);
 
-    client->println(F("Accept: application/json"));
+    if (accept != NULL)
+    {
+        client->print(F("Accept: "));
+        client->println(accept);
+    }
+
+    if (cookie != NULL)
+    {
+        client->print(F("Cookie: "));
+        client->println(cookie);
+    } 
 
     client->println(F("Cache-Control: no-cache"));
 
@@ -61,11 +71,10 @@ int ArduinoYoutubeVideoApi::makeGetRequest(char *command)
     }
 
     int statusCode = getHttpStatusCode();
-    skipHeaders();
     return statusCode;
 }
 
-char* ArduinoYoutubeVideoApi::getLiveVideoId(char *channelId){
+char* ArduinoYoutubeVideoApi::getLiveVideoId(const char *channelId){
     char command[250];
     sprintf(command, searchEndpointAndParams, channelId, _apiToken);
     if (_debug)
@@ -78,6 +87,7 @@ char* ArduinoYoutubeVideoApi::getLiveVideoId(char *channelId){
 
     if (makeGetRequest(command) == 200)
     {
+        skipHeaders();
         // Allocate DynamicJsonDocument
         DynamicJsonDocument doc(bufferSize);
 
@@ -101,7 +111,7 @@ char* ArduinoYoutubeVideoApi::getLiveVideoId(char *channelId){
     return NULL;
 }
 
-LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
+LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(const char *videoId){
     char command[250];
     sprintf(command, videoLivestreamDetailsEndpoint, videoId, _apiToken);
     if (_debug)
@@ -116,6 +126,7 @@ LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
     int statusCode = makeGetRequest(command);
     if (statusCode == 200)
     {
+        skipHeaders();
         // Allocate DynamicJsonDocument
         DynamicJsonDocument doc(bufferSize);
 
@@ -159,7 +170,47 @@ LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(char *videoId){
     return liveStreamDetails;
 }
 
-ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *part){
+bool ArduinoYoutubeVideoApi::scrapeIsChannelLive(const char *channelId, char *videoIdOut, int videoIdOutSize){
+    char command[100];
+    sprintf(command, youTubeChannelUrl, channelId);
+
+    bool channelIsLive = true;
+
+    int statusCode = makeGetRequest(command, YOUTUBE_HOST, "*/*", YOUTUBE_ACCEPT_COOKIES_COOKIE);
+    if(statusCode == 200) {
+        if (!client->find("{\"text\":\" watching\"}"))
+        {
+            Serial.println(F("Channel doesn't seem to be live"));
+            channelIsLive = false;
+        } else if (videoIdOut != NULL){
+            if (!client->find("{\"videoId\":\""))
+            {
+                Serial.println(F("Could not find videoID"));
+                channelIsLive = false;
+            } else {
+                client->readBytesUntil('\"', videoIdOut, videoIdOutSize);
+            }
+        }
+    } else {
+        Serial.print("Not 200: ");
+        Serial.println(statusCode);
+
+        // while (client->available() )
+        // {
+        //     char c = 0;
+        //     client->readBytes(&c, 1);
+        //     Serial.print(c);
+
+        // }
+        channelIsLive = false;
+    }
+
+    closeClient();
+    return channelIsLive;
+
+}
+
+ChatResponses ArduinoYoutubeVideoApi::getChatMessages(const char *liveChatId, const char *part){
     char command[300];
     sprintf(command, liveChatMessagesEndpoint, liveChatId, part, _apiToken);
 
@@ -180,6 +231,7 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
     const size_t bufferSize = 20000;
     if (makeGetRequest(command) == 200)
     {
+        skipHeaders();
         StaticJsonDocument<192> filter;
         filter["nextPageToken"] = true;
         filter["pollingIntervalMillis"] = true;
@@ -239,25 +291,24 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(char *liveChatId, char *pa
 
 
 
-void ArduinoYoutubeVideoApi::skipHeaders()
+void ArduinoYoutubeVideoApi::skipHeaders(bool tossUnexpectedForJSON)
 {
     // Skip HTTP headers
-    char endOfHeaders[] = "\r\n\r\n";
-    if (!client->find(endOfHeaders))
+    if (!client->find("\r\n\r\n"))
     {
         Serial.println(F("Invalid response"));
         return;
     }
 
-    // Was getting stray characters between the headers and the body
-    // This should toss them away
-    while (client->available() && client->peek() != '{')
+    if (tossUnexpectedForJSON)
     {
-        char c = 0;
-        client->readBytes(&c, 1);
-        if (_debug)
+        // Was getting stray characters between the headers and the body
+        // This should toss them away
+        while (client->available() && client->peek() != '{')
         {
-            Serial.print("Tossing an unexpected character: ");
+            char c = 0;
+            client->readBytes(&c, 1);
+            Serial.print(F("Tossing an unexpected character: "));
             Serial.println(c);
         }
     }

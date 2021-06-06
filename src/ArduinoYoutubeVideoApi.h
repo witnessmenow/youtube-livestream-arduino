@@ -23,7 +23,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #include <ArduinoJson.h>
 #include <Client.h>
 
-#define YOUTUBE_VIDEO_HOST "www.googleapis.com"
+#define YOUTUBE_API_HOST "www.googleapis.com"
+#define YOUTUBE_HOST "www.youtube.com"
 // Fingerprint correct as of June 11th 2020
 //#define SLACK_FINGERPRINT "C1 0D 53 49 D2 3E E5 2B A2 61 D5 9E 6F 99 0D 3D FD 8B B2 B3"
 #define YOUTUBE_TIMEOUT 2000
@@ -38,12 +39,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
 
+#define YOUTUBE_ACCEPT_COOKIES_COOKIE "CONSENT=YES+cb.20210530-19-p0.en-GB+FX+999"
+
 struct LiveStreamDetails
 {
     char *concurrentViewers;
     char *activeLiveChatId;
     bool error;
 };
+
 
 struct ChatMessage
 {
@@ -65,11 +69,12 @@ struct ChatResponses
 class ArduinoYoutubeVideoApi
 {
   public:
-    ArduinoYoutubeVideoApi(Client &client, char *apiToken);
-    int makeGetRequest(char *command);
-    char* getLiveVideoId(char *channelId);
-    LiveStreamDetails getLiveChatId(char *videoId);
-    ChatResponses getChatMessages(char *liveChatId, char *part = "id,snippet,authorDetails");
+    ArduinoYoutubeVideoApi(Client &client, const char *apiToken);
+    int makeGetRequest(const char *command, const char *host = YOUTUBE_API_HOST, const char *accept = "application/json", const char *cookie = NULL);
+    char* getLiveVideoId(const char *channelId);
+    bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
+    LiveStreamDetails getLiveChatId(const char *videoId);
+    ChatResponses getChatMessages(const char *liveChatId, const char *part = "id,snippet,authorDetails");
     int portNumber = 443;
     bool _debug = true;
     Client *client;
@@ -78,9 +83,9 @@ class ArduinoYoutubeVideoApi
     void destroyStructs();
 
   private:
-    char *_apiToken;
+    const char *_apiToken;
     int getHttpStatusCode();
-    void skipHeaders();
+    void skipHeaders(bool tossUnexpectedForJSON = true);
     void closeClient();
 
     LiveStreamDetails liveStreamDetails;
@@ -95,6 +100,10 @@ class ArduinoYoutubeVideoApi
 
     const char *liveChatMessagesEndpoint = 
         R"(/youtube/v3/liveChat/messages?liveChatId=%s&part=%s&key=%s)"
+    ;
+
+    const char *youTubeChannelUrl = 
+        R"(/channel/%s)"
     ;
 
 };
