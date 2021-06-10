@@ -48,8 +48,8 @@ char password[] = "password"; // your network password
 
 #define YT_API_TOKEN "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD"
 
-#define CHANNEL_ID "UCezJOfu7OtqGzd5xrP3q6WA"
-
+//#define CHANNEL_ID "UC8rQKO2XhPnvhnyV1eALa6g" //Bitluni's trash
+#define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
 
 //------- ---------------------- ------
 
@@ -90,32 +90,38 @@ void setup() {
   // If you want to enable some extra debugging
   ytVideo._debug = true;
 
-  // Not working! , just get the video id from the stream (youtube.com?v=6ThXZ9gxmdA).
   //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
-  char videoId[] = "6ThXZ9gxmdA";
-  if (videoId != NULL) {
-    Serial.print("Channel is live now with Video ID: ");
-    Serial.println(videoId);
+  //char videoId[] = "6ThXZ9gxmdA";
+  char videoId[20];
+  if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, 20))
+  {
+    Serial.println("Channel is live");
+    if (videoId != NULL) {
+      Serial.print("Video ID: ");
+      Serial.println(videoId);
 
-    delay(100);
-    details = ytVideo.getLiveChatId(videoId);
-    if (!details.error) {
-      Serial.print("concurrent Viewers: ");
-      Serial.println(details.concurrentViewers);
-      Serial.print("Chat Id: ");
-      Serial.println(details.activeLiveChatId);
-      liveId = String(details.activeLiveChatId);
+      delay(100);
+      details = ytVideo.getLiveChatId(videoId);
+      if (!details.error) {
+        Serial.print("concurrent Viewers: ");
+        Serial.println(details.concurrentViewers);
+        Serial.print("Chat Id: ");
+        Serial.println(details.activeLiveChatId);
+        liveId = String(details.activeLiveChatId);
+      } else {
+        Serial.println("Error getting Live Stream Details");
+      }
     } else {
-      Serial.println("Error getting Live Stream Details");
+      Serial.println("Channel does not appear to be live");
     }
   } else {
-    Serial.println("Channel does not appear to be live");
+    Serial.println("Channel is NOT live");
   }
 }
 
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
-  if (message.isMod) {
+  if (message.isChatModerator) {
     Serial.print("(mod)");
   }
   Serial.print(": ");

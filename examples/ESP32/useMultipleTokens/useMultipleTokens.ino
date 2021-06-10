@@ -21,12 +21,12 @@
     Tindie: https://www.tindie.com/stores/brianlough/
     Twitter: https://twitter.com/witnessmenow
  *******************************************************************/
-
+#define ARDUINOJSON_DECODE_UNICODE 1
 // ----------------------------
 // Standard Libraries
 // ----------------------------
 
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <WiFiClientSecure.h>
 
 // ----------------------------
@@ -34,7 +34,6 @@
 // ----------------------------
 
 #include <ArduinoYoutubeVideoApi.h>
-
 
 #include <ArduinoJson.h>
 // Library used for parsing Json from the API responses
@@ -47,69 +46,83 @@
 char ssid[] = "SSID";         // your network SSID (name)
 char password[] = "password"; // your network password
 
-#define YT_API_TOKEN "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD"
+// You need 1 API key per roughly 2 hours of chat you plan to monitor 
+// Create multiple "applications", each will have their own quota
+#define NUM_API_KEYS 2
+const char *keys[NUM_API_KEYS] = {"AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD", "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCEEEEEEEEEE"};
 
-#define CHANNEL_ID "UCezJOfu7OtqGzd5xrP3q6WA"
-
+//#define CHANNEL_ID "UCDsbBjIl0lYZB4IokDLyWIQ"
+//#define CHANNEL_ID "UC8rQKO2XhPnvhnyV1eALa6g" //Bitluni's trash
+#define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
+//#define CHANNEL_ID "UCp_5PO66faM4dBFbFFBdPSQ" // Bitluni.
 
 //------- ---------------------- ------
 
+
+
 WiFiClientSecure client;
-ArduinoYoutubeVideoApi ytVideo(client, YT_API_TOKEN);
+ArduinoYoutubeVideoApi ytVideo(client, keys, NUM_API_KEYS);
 
 unsigned long delayBetweenRequests = 30000; // Time between requests (1 minute)
 unsigned long requestDueTime;               //time when request due
 
 LiveStreamDetails details;
 String liveId;
+bool ledState = false;
 void setup() {
 
   Serial.begin(115200);
 
-  // Set WiFi to station mode and disconnect from an AP if it was Previously
-  // connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
+  pinMode(5, OUTPUT);
+  digitalWrite(5, ledState);
 
-  // Attempt to connect to Wifi network:
-  Serial.print("Connecting Wifi: ");
-  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.print(".");
+  Serial.println("");
+
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+    Serial.print(".");
   }
   Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  IPAddress ip = WiFi.localIP();
-  Serial.println(ip);
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
 
   //client.setFingerprint(SLACK_FINGERPRINT);
   client.setInsecure();
   // If you want to enable some extra debugging
   ytVideo._debug = true;
 
-  // Not working! , just get the video id from the stream (youtube.com?v=6ThXZ9gxmdA).
   //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
-  char videoId[] = "6ThXZ9gxmdA";  if (videoId != NULL) {
-    Serial.print("Channel is live now with Video ID: ");
-    Serial.println(videoId);
+  //char videoId[] = "6ThXZ9gxmdA";
+  char videoId[20];
+  if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, 20))
+  {
+    Serial.println("Channel is live");
+    if (videoId != NULL) {
+      Serial.print("Video ID: ");
+      Serial.println(videoId);
 
-    details = ytVideo.getLiveChatId(videoId);
-    if (!details.error) {
-      Serial.print("concurrent Viewers: ");
-      Serial.println(details.concurrentViewers);
-      Serial.print("Chat Id: ");
-      Serial.println(details.activeLiveChatId);
-      liveId = String(details.activeLiveChatId);
+      delay(100);
+      details = ytVideo.getLiveChatId(videoId);
+      if (!details.error) {
+        Serial.print("concurrent Viewers: ");
+        Serial.println(details.concurrentViewers);
+        Serial.print("Chat Id: ");
+        Serial.println(details.activeLiveChatId);
+        liveId = String(details.activeLiveChatId);
+      } else {
+        Serial.println("Error getting Live Stream Details");
+      }
     } else {
-      Serial.println("Error getting Live Stream Details");
+      Serial.println("Channel does not appear to be live");
     }
   } else {
-    Serial.println("Channel does not appear to be live");
+    Serial.println("Channel is NOT live");
   }
 }
 
@@ -131,10 +144,18 @@ void loop() {
       //ChatResponses responses = ytVideo.getChatMessages(details.activeLiveChatId);
       ChatResponses responses = ytVideo.getChatMessages((char *)liveId.c_str());
       if (!responses.error) {
-        for (int i = 0; i < responses.resultsPerPage; i++) {
+        for (int i = 0; i < responses.numMessages; i++) {
           printMessage(responses.messages[i]);
+          if ( strcmp(responses.messages[i].displayMessage, "!led") == 0 )
+          {
+            ledState = !ledState;
+            digitalWrite(5, ledState);
+          }
         }
         Serial.println("done");
+        Serial.print("Polling interval: ");
+        Serial.println(responses.pollingIntervalMillis);
+
         requestDueTime = millis() + responses.pollingIntervalMillis + 500;
       } else {
         Serial.println("There was an error");
