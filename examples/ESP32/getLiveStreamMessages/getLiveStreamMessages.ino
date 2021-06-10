@@ -121,7 +121,7 @@ void setup() {
 
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
-  if (message.isMod) {
+  if (message.isChatModerator) {
     Serial.print("(mod)");
   }
   Serial.print(": ");

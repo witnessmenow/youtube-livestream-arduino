@@ -35,11 +35,49 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_NAME_CHAR_LENGTH 50
 #define YOUTUBE_VIEWERS_CHAR_LENGTH 20
 #define YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH 80
+#define YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH 4
 
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
 
 #define YOUTUBE_ACCEPT_COOKIES_COOKIE "CONSENT=YES+cb.20210530-19-p0.en-GB+FX+999"
+
+/*
+            "snippet": {
+                "type": "superChatEvent",
+                "liveChatId": "Cg0KCzlUVEM2VmpWVXVrKicKGFVDOHJRS08yWGhQbnZobnlWMWVBTGE2ZxILOVRUQzZWalZVdWs",
+                "authorChannelId": "UCezJOfu7OtqGzd5xrP3q6WA",
+                "publishedAt": "2021-06-09T15:40:52.765983+00:00",
+                "hasDisplayContent": true,
+                "displayMessage": "€2.00 from Brian Lough: \"test\"",
+                "superChatDetails": {
+                    "amountMicros": "2000000",
+                    "currency": "EUR",
+                    "amountDisplayString": "€2.00",
+                    "userComment": "test",
+                    "tier": 2
+                }
+            },
+            "authorDetails": {
+                "channelId": "UCezJOfu7OtqGzd5xrP3q6WA",
+                "channelUrl": "http://www.youtube.com/channel/UCezJOfu7OtqGzd5xrP3q6WA",
+                "displayName": "Brian Lough",
+                "profileImageUrl": "https://yt3.ggpht.com/ytc/AAUvwnhN1ReWNGKAXND2kwS8Yk3Z4Vs8ea-wMXd_1mzUag=s88-c-k-c0x00ffffff-no-rj",
+                "isVerified": false,
+                "isChatOwner": false,
+                "isChatSponsor": false,
+                "isChatModerator": true
+            }
+
+*/
+
+enum YoutubeMessageType
+{
+    yt_message_type_unknown,
+    yt_message_type_text,
+    yt_message_type_superChat,
+    yt_message_type_superSticker
+};
 
 struct LiveStreamDetails
 {
@@ -51,9 +89,16 @@ struct LiveStreamDetails
 
 struct ChatMessage
 {
+    YoutubeMessageType type;
     char *displayMessage;
     char *displayName;
-    bool isMod;
+    int tier;
+    long amountMicros;
+    char *currency;
+    bool isChatModerator;
+    bool isChatOwner;
+    bool isChatSponsor;
+    bool isVerified;
 };
 
 struct ChatResponses
@@ -70,6 +115,7 @@ class ArduinoYoutubeVideoApi
 {
   public:
     ArduinoYoutubeVideoApi(Client &client, const char *apiToken);
+    ArduinoYoutubeVideoApi(Client &client, const char **apiTokenArray, int tokenArrayLength);
     int makeGetRequest(const char *command, const char *host = YOUTUBE_API_HOST, const char *accept = "application/json", const char *cookie = NULL);
     char* getLiveVideoId(const char *channelId);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
@@ -84,14 +130,18 @@ class ArduinoYoutubeVideoApi
 
   private:
     const char *_apiToken;
+    const char **_apiTokenArray;
+    int _tokenArrayLength = 0;
+    int apiTokenIndex;
     int getHttpStatusCode();
+    void rotateApiKey();
     void skipHeaders(bool tossUnexpectedForJSON = true);
     void closeClient();
 
     LiveStreamDetails liveStreamDetails;
     ChatResponses chatResponses;
     const char *searchEndpointAndParams = 
-        R"(/youtube/v3/search?eventType=live&part=id&channelId=%s&type=video&key=%s&maxResults=1)"
+        R"(/youtube/v3/search?eventType=live&part=id&channelId=%s&type=video&key=%s&maxResults=1&isMine=true)"
     ;
 
     const char *videoLivestreamDetailsEndpoint = 

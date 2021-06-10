@@ -26,6 +26,15 @@ ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, const char *apiTo
     initStructs();
 }
 
+ArduinoYoutubeVideoApi::ArduinoYoutubeVideoApi(Client &client, const char **apiTokenArray, int tokenArrayLength)
+{
+    this->client = &client;
+    this->_apiTokenArray = apiTokenArray;
+    this->_tokenArrayLength = tokenArrayLength;
+    nextPageToken[0] = 0;
+    initStructs();
+}
+
 int ArduinoYoutubeVideoApi::makeGetRequest(const char *command, const char *host, const char *accept, const char *cookie)
 {
     client->flush();
@@ -76,6 +85,11 @@ int ArduinoYoutubeVideoApi::makeGetRequest(const char *command, const char *host
 
 char* ArduinoYoutubeVideoApi::getLiveVideoId(const char *channelId){
     char command[250];
+
+    if(_tokenArrayLength > 0){
+        rotateApiKey();
+    }
+
     sprintf(command, searchEndpointAndParams, channelId, _apiToken);
     if (_debug)
     {
@@ -113,6 +127,11 @@ char* ArduinoYoutubeVideoApi::getLiveVideoId(const char *channelId){
 
 LiveStreamDetails ArduinoYoutubeVideoApi::getLiveChatId(const char *videoId){
     char command[250];
+
+    if(_tokenArrayLength > 0){
+        rotateApiKey();
+    }
+
     sprintf(command, videoLivestreamDetailsEndpoint, videoId, _apiToken);
     if (_debug)
     {
@@ -176,6 +195,10 @@ bool ArduinoYoutubeVideoApi::scrapeIsChannelLive(const char *channelId, char *vi
 
     bool channelIsLive = true;
 
+    Serial.print("url: ");
+    Serial.println(command);
+
+
     int statusCode = makeGetRequest(command, YOUTUBE_HOST, "*/*", YOUTUBE_ACCEPT_COOKIES_COOKIE);
     if(statusCode == 200) {
         if (!client->find("{\"text\":\" watching\"}"))
@@ -212,6 +235,11 @@ bool ArduinoYoutubeVideoApi::scrapeIsChannelLive(const char *channelId, char *vi
 
 ChatResponses ArduinoYoutubeVideoApi::getChatMessages(const char *liveChatId, const char *part){
     char command[300];
+
+    if(_tokenArrayLength > 0){
+        rotateApiKey();
+    }
+
     sprintf(command, liveChatMessagesEndpoint, liveChatId, part, _apiToken);
 
     if(nextPageToken[0] != 0){
@@ -242,10 +270,16 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(const char *liveChatId, co
 
         JsonObject filter_items_0 = filter["items"].createNestedObject();
         filter_items_0["snippet"]["displayMessage"] = true;
+        filter_items_0["snippet"]["type"] = true;
+        filter_items_0["snippet"]["superChatDetails"] = true;
+        filter_items_0["snippet"]["superStickerDetails"] = true;
 
         JsonObject filter_items_0_authorDetails = filter_items_0.createNestedObject("authorDetails");
         filter_items_0_authorDetails["displayName"] = true;
         filter_items_0_authorDetails["isChatModerator"] = true;
+        filter_items_0_authorDetails["isChatOwner"] = true;
+        filter_items_0_authorDetails["isChatSponsor"] = true;
+        filter_items_0_authorDetails["isVerified"] = true;
 
         // Allocate DynamicJsonDocument
         DynamicJsonDocument doc(bufferSize);
@@ -261,19 +295,88 @@ ChatResponses ArduinoYoutubeVideoApi::getChatMessages(const char *liveChatId, co
             chatResponses.totalResults = doc["pageInfo"]["totalResults"].as<int>();
             chatResponses.resultsPerPage = doc["pageInfo"]["resultsPerPage"].as<int>();
             JsonArray items = doc["items"];
-            Serial.print("Got Here");
+            //Serial.print("Got Here");
             int numMessages = YOUTUBE_MAX_RESULTS > items.size() ? items.size() : YOUTUBE_MAX_RESULTS;
             for(int i = 0; i < numMessages ; i++){
                 //numMessages ++;
                 int reverseIndex = items.size() - 1 - i;
-                serializeJson(items[reverseIndex], Serial);
-                
-                strncpy(chatResponses.messages[i].displayMessage,  items[reverseIndex]["snippet"]["displayMessage"].as<char *>(), YOUTUBE_MSG_CHAR_LENGTH);
-                chatResponses.messages[i].displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                //serializeJson(items[reverseIndex], Serial);
+                ChatMessage message = chatResponses.messages[i];
 
-                strncpy(chatResponses.messages[i].displayName, items[reverseIndex]["authorDetails"]["displayName"].as<char *>(), YOUTUBE_NAME_CHAR_LENGTH);
-                chatResponses.messages[i].displayName[YOUTUBE_NAME_CHAR_LENGTH -1] = '\0';
-                chatResponses.messages[i].isMod = items[reverseIndex]["authorDetails"]["isChatModerator"].as<bool>();
+                // init message back to blank
+                message.displayMessage[0] = '\0';
+                message.tier = -1;
+                message.amountMicros = -1;
+                message.currency[0] = '\0';
+
+                // It's possible for users to not request snippet
+                if (items[reverseIndex].containsKey("snippet")) {
+
+                    const char *messageType = items[reverseIndex]["snippet"]["type"]; 
+                    Serial.print("messageType: ");
+                    Serial.println(messageType);
+
+                    if (strncmp(messageType, "textMessageEvent", 16) == 0)
+                    {
+                        message.type = yt_message_type_text;
+                        strncpy(message.displayMessage,  items[reverseIndex]["snippet"]["displayMessage"].as<char *>(), YOUTUBE_MSG_CHAR_LENGTH);
+                        message.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+
+                    }
+                    else if (strncmp(messageType, "superChatEvent", 14) == 0)
+                    {
+                        message.type = yt_message_type_superChat;
+
+                        JsonObject superChatDetails = items[reverseIndex]["snippet"]["superChatDetails"];
+
+                        if(superChatDetails.containsKey("userComment")){
+                            strncpy(message.displayMessage,  superChatDetails["userComment"].as<char *>(), YOUTUBE_MSG_CHAR_LENGTH);
+                            message.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                        }
+                        
+                        message.tier = superChatDetails["tier"].as<int>();
+                        message.amountMicros = superChatDetails["amountMicros"].as<long>();
+                        strncpy(message.currency,  superChatDetails["currency"].as<char *>(), YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
+                        message.currency[YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH -1] = '\0';
+                    } 
+                    else if (strncmp(messageType, "superStickerEvent", 17) == 0)
+                    {
+                        chatResponses.messages[i].type = yt_message_type_superSticker;
+
+                        JsonObject superStickerDetails = items[reverseIndex]["snippet"]["superStickerDetails"];
+
+                        if(superStickerDetails.containsKey("userComment")){
+                            strncpy(message.displayMessage,  superStickerDetails["userComment"].as<char *>(), YOUTUBE_MSG_CHAR_LENGTH);
+                            message.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                        }                      
+
+                        message.tier = superStickerDetails["tier"].as<int>();
+                        message.amountMicros = superStickerDetails["amountMicros"].as<long>();
+                        strncpy(message.currency,  superStickerDetails["currency"].as<char *>(), YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
+                        message.currency[YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH -1] = '\0';
+                    }
+                    else
+                    {
+                        chatResponses.messages[i].type = yt_message_type_unknown;
+                    }
+                    
+                }
+
+                 // It's possible for users to not request authorDetails, it's only needed if you need the name of person who sent the message.
+                if (items[reverseIndex].containsKey("authorDetails")) {
+                    strncpy(message.displayName, items[reverseIndex]["authorDetails"]["displayName"].as<char *>(), YOUTUBE_NAME_CHAR_LENGTH);
+                    message.displayName[YOUTUBE_NAME_CHAR_LENGTH -1] = '\0';
+                    message.isChatModerator = items[reverseIndex]["authorDetails"]["isChatModerator"].as<bool>();
+                    message.isChatOwner = items[reverseIndex]["authorDetails"]["isChatOwner"].as<bool>();
+                    message.isChatSponsor = items[reverseIndex]["authorDetails"]["isChatSponsor"].as<bool>();
+                    message.isVerified = items[reverseIndex]["authorDetails"]["isVerified"].as<bool>();
+                } else {
+                    message.displayName[0] = '\0';
+                    message.isChatModerator = false;
+                    message.isChatOwner = false;
+                    message.isChatSponsor = false;
+                    message.isVerified = false;
+                }
             }
 
             chatResponses.numMessages = numMessages;
@@ -325,6 +428,15 @@ int ArduinoYoutubeVideoApi::getHttpStatusCode()
     return -1;
 }
 
+void ArduinoYoutubeVideoApi::rotateApiKey()
+{
+    apiTokenIndex++;
+    if(apiTokenIndex >= _tokenArrayLength){
+        apiTokenIndex = 0;
+    }
+    _apiToken = _apiTokenArray[apiTokenIndex];
+}
+
 void ArduinoYoutubeVideoApi::closeClient()
 {
     if (client->connected())
@@ -342,6 +454,7 @@ void ArduinoYoutubeVideoApi::initStructs()
     for(int i = 0; i < YOUTUBE_MAX_RESULTS; i++){
         chatResponses.messages[i].displayMessage = (char *)malloc(YOUTUBE_MSG_CHAR_LENGTH);
         chatResponses.messages[i].displayName = (char *)malloc(YOUTUBE_NAME_CHAR_LENGTH);
+        chatResponses.messages[i].currency = (char *)malloc(YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
     }
 
     liveStreamDetails.concurrentViewers = (char *)malloc(YOUTUBE_VIEWERS_CHAR_LENGTH);
@@ -355,6 +468,7 @@ void ArduinoYoutubeVideoApi::destroyStructs()
     for(int i = 0; i < YOUTUBE_MAX_RESULTS; i++){
         free(chatResponses.messages[i].displayMessage);
         free(chatResponses.messages[i].displayName);
+        free(chatResponses.messages[i].currency);
     }
 
     free(liveStreamDetails.concurrentViewers);
