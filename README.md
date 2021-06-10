@@ -21,7 +21,6 @@ The Library supports the following features:
 
 - Example for checking the stream status of multiple channels
 - Improve examples to stop requesting messages when streams end
-- Clean up library to remove debug prints etc
 
 ## Setup Instructions
 

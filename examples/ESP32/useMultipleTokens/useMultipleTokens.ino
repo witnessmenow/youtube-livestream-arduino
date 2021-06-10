@@ -1,10 +1,7 @@
 /*******************************************************************
-    Sets a custom status on your slack account. It will toggle between
-    two every 30 seconds
-
-    You will need a bearer token, see readme for more details
-
-    You will also need to be on version 2.5 or higher of the ESP8266 core
+    Display messages and Super chats/stickers from a live stream
+    on a given channel. Uses multiple API keys to spread out
+    the quota.
 
     Parts:
     D1 Mini ESP8266 * - http://s.click.aliexpress.com/e/uzFUnIe
@@ -51,10 +48,11 @@ char password[] = "password"; // your network password
 #define NUM_API_KEYS 2
 const char *keys[NUM_API_KEYS] = {"AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD", "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCEEEEEEEEEE"};
 
-//#define CHANNEL_ID "UCDsbBjIl0lYZB4IokDLyWIQ"
 //#define CHANNEL_ID "UC8rQKO2XhPnvhnyV1eALa6g" //Bitluni's trash
 #define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
 //#define CHANNEL_ID "UCp_5PO66faM4dBFbFFBdPSQ" // Bitluni.
+
+#define LED_PIN 2
 
 //------- ---------------------- ------
 
@@ -63,9 +61,6 @@ const char *keys[NUM_API_KEYS] = {"AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD",
 WiFiClientSecure client;
 ArduinoYoutubeVideoApi ytVideo(client, keys, NUM_API_KEYS);
 
-unsigned long delayBetweenRequests = 30000; // Time between requests (1 minute)
-unsigned long requestDueTime;               //time when request due
-
 LiveStreamDetails details;
 String liveId;
 bool ledState = false;
@@ -73,8 +68,8 @@ void setup() {
 
   Serial.begin(115200);
 
-  pinMode(5, OUTPUT);
-  digitalWrite(5, ledState);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, ledState);
 
 
   WiFi.mode(WIFI_STA);
@@ -92,14 +87,16 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  //client.setFingerprint(SLACK_FINGERPRINT);
+  //TODO: Use certs
   client.setInsecure();
-  // If you want to enable some extra debugging
-  ytVideo._debug = true;
 
-  //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
-  //char videoId[] = "6ThXZ9gxmdA";
+
   char videoId[20];
+
+  // This is the official way to get the videoID, but it
+  // uses too much of your daily quota.
+  //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
+
   if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, 20))
   {
     Serial.println("Channel is live");
@@ -135,22 +132,45 @@ void printMessage(ChatMessage message) {
   Serial.println(message.displayMessage);
 }
 
+void printSuperThing(ChatMessage message) {
+  Serial.print(message.displayName);
+  if (message.isChatModerator) {
+    Serial.print("(mod)");
+  }
+  Serial.print(": ");
+  Serial.println(message.displayMessage);
+  
+  Serial.print(message.currency);
+  Serial.print(" ");
+  long cents = message.amountMicros / 1000;
+  long centsOnly = cents % 100;
+  
+  Serial.print(cents / 100);
+  Serial.print(".");
+  Serial.println(centsOnly);
+
+  Serial.print("Tier: ");
+  Serial.println(message.tier);
+}
+
 void loop() {
   if (liveId.length() > 0) {
     if (millis() > requestDueTime)
     {
-      //Serial.println(details.activeLiveChatId);
-      Serial.println(liveId);
-      //ChatResponses responses = ytVideo.getChatMessages(details.activeLiveChatId);
       ChatResponses responses = ytVideo.getChatMessages((char *)liveId.c_str());
       if (!responses.error) {
         for (int i = 0; i < responses.numMessages; i++) {
-          printMessage(responses.messages[i]);
-          if ( strcmp(responses.messages[i].displayMessage, "!led") == 0 )
-          {
+          if(responses.messages[i].type == yt_message_type_text){
+            printMessage(responses.messages[i]);
+          } else if (responses.messages[i].type == yt_message_type_superChat || responses.messages[i].type == yt_message_type_superSticker){
+            printSuperThing(responses.messages[i]);
             ledState = !ledState;
-            digitalWrite(5, ledState);
+            digitalWrite(LED_PIN, ledState);
+          } else {
+            Serial.print("Unknown Message Type: ");
+            Serial.println(responses.messages[i].type);
           }
+
         }
         Serial.println("done");
         Serial.print("Polling interval: ");

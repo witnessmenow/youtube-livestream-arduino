@@ -1,7 +1,7 @@
 /*
 Copyright (c) 2020 Brian Lough. All right reserved.
 
-ARduinoYoutubeVideoApi - An Arduino library to wrap the Youtube API for video stuff
+YouTubeLiveStream - An Arduino library to wrap the Youtube API for video stuff
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
@@ -16,20 +16,40 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#ifndef ArduinoYoutubeVideoApi_h
-#define ArduinoYoutubeVideoApi_h
+#ifndef YouTubeLiveStream_h
+#define YouTubeLiveStream_h
+
+
+// I find setting these types of flags unreliable from the Arduino IDE
+// so uncomment this if its not working for you.
+// NOTE: Do not use this option on live-streams, it will reveal your
+// private tokens!
+#define YOUTUBE_DEBUG 1
+
+// Comment out if you want to disable any serial output from this library (also comment out DEBUG and PRINT_JSON_PARSE)
+#define YOUTUBE_SERIAL_OUTPUT 1 
+
+// Prints the JSON received to serial (only use for debugging as it will be slow)
+// #define YOUTUBE_PRINT_JSON_PARSE 1
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Client.h>
 
+#ifdef YOUTUBE_PRINT_JSON_PARSE
+#include <StreamUtils.h>
+#endif
+
 #define YOUTUBE_API_HOST "www.googleapis.com"
 #define YOUTUBE_HOST "www.youtube.com"
-// Fingerprint correct as of June 11th 2020
-//#define SLACK_FINGERPRINT "C1 0D 53 49 D2 3E E5 2B A2 61 D5 9E 6F 99 0D 3D FD 8B B2 B3"
+
+// Fingerprint correct as of June 10th 2021
+#define YOUTUBE_API_FINGERPRINT "CE 0A 82 83 34 79 AA 42 C7 3B 4A 0E FA 1E 98 31 B8 CF 3F FB"
+#define YOUTUBE_FINGERPRINT "57 FE CC B1 D0 EA 5D B5 1B 1A 76 B0 7D 03 26 A4 8D 1F 90 83"
+
 #define YOUTUBE_TIMEOUT 2000
 
-#define YOUTUBE_MAX_RESULTS 5
+#define YOUTUBE_MAX_RESULTS 10
 
 #define YOUTUBE_MSG_CHAR_LENGTH 100 //Increase if MSG are being cut off
 #define YOUTUBE_NAME_CHAR_LENGTH 50
@@ -40,36 +60,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
 
+// Required when scraping or it will bring you to a accept cookie landing page
 #define YOUTUBE_ACCEPT_COOKIES_COOKIE "CONSENT=YES+cb.20210530-19-p0.en-GB+FX+999"
-
-/*
-            "snippet": {
-                "type": "superChatEvent",
-                "liveChatId": "Cg0KCzlUVEM2VmpWVXVrKicKGFVDOHJRS08yWGhQbnZobnlWMWVBTGE2ZxILOVRUQzZWalZVdWs",
-                "authorChannelId": "UCezJOfu7OtqGzd5xrP3q6WA",
-                "publishedAt": "2021-06-09T15:40:52.765983+00:00",
-                "hasDisplayContent": true,
-                "displayMessage": "€2.00 from Brian Lough: \"test\"",
-                "superChatDetails": {
-                    "amountMicros": "2000000",
-                    "currency": "EUR",
-                    "amountDisplayString": "€2.00",
-                    "userComment": "test",
-                    "tier": 2
-                }
-            },
-            "authorDetails": {
-                "channelId": "UCezJOfu7OtqGzd5xrP3q6WA",
-                "channelUrl": "http://www.youtube.com/channel/UCezJOfu7OtqGzd5xrP3q6WA",
-                "displayName": "Brian Lough",
-                "profileImageUrl": "https://yt3.ggpht.com/ytc/AAUvwnhN1ReWNGKAXND2kwS8Yk3Z4Vs8ea-wMXd_1mzUag=s88-c-k-c0x00ffffff-no-rj",
-                "isVerified": false,
-                "isChatOwner": false,
-                "isChatSponsor": false,
-                "isChatModerator": true
-            }
-
-*/
 
 enum YoutubeMessageType
 {
@@ -111,11 +103,11 @@ struct ChatResponses
     bool error;
 };
 
-class ArduinoYoutubeVideoApi
+class YouTubeLiveStream
 {
   public:
-    ArduinoYoutubeVideoApi(Client &client, const char *apiToken);
-    ArduinoYoutubeVideoApi(Client &client, const char **apiTokenArray, int tokenArrayLength);
+    YouTubeLiveStream(Client &client, const char *apiToken);
+    YouTubeLiveStream(Client &client, const char **apiTokenArray, int tokenArrayLength);
     int makeGetRequest(const char *command, const char *host = YOUTUBE_API_HOST, const char *accept = "application/json", const char *cookie = NULL);
     char* getLiveVideoId(const char *channelId);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
