@@ -19,10 +19,39 @@ The Library supports the following features:
 
 ### What needs to be added:
 
-- Documentation on getting a key and why you might want multiple keys
 - Example for checking the stream status of multiple channels
 - Improve examples to stop requesting messages when streams end
 - Clean up library to remove debug prints etc
+
+## Setup Instructions
+
+### Installation
+
+Download zip from Github and install to the Arduino IDE using that.
+
+#### Dependencies
+
+- V6 of Arduino JSON - can be installed through the Arduino Library manager.
+
+### API Keys
+
+All calls other than `scrapeIsChannelLive` require a valid API Key from Google. These are free, but have a quota of 10k per day. Different requests use up different amounts of the quota (details listed in the **API Endpoints Details** table below)
+
+#### Instructions to get an API key
+
+- Go to [the Google developer dashboard](https://console.developers.google.com) and create a new project.
+- Go to the [the Google API library](https://console.developers.google.com/apis/library), find the ["YouTube Data API v3"](https://console.developers.google.com/apis/library/youtube.googleapis.com), and "Enable" it for your project.
+- In the "API & Services" menu, [go to "Credentials"](https://console.developers.google.com/apis/credentials), click "Create Credentials" and create a new API key.
+- (Optional) You can limit this API key to only work with the YouTube API, click on the API key, under "API restrictions" select "Restrict Key" and check the "YouTube Data API v3"
+- Make sure the following URL works for you in your browser (change the key at the end!): `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=UCezJOfu7OtqGzd5xrP3q6WA&key=PutYourNewlyGeneratedKeyHere`
+
+Note: For the above URLs, you may need to select the correct project, there is a drop down on the top left.
+
+#### Multiple API Keys
+
+An API key can actively monitor live chat constantly for just over **2 hours**, seeing as this isn't that long, this library supports using multiple API keys to spread out the quota (2 keys should get over 4 hours, 3 keys -> 6 hours etc). To create multiple keys, repeat the steps above, including creating a new project each time.
+
+Check out the [useMultipleTokens](examples/ESP32/useMultipleTokens/useMultipleTokens.ino) example to see how to use multiple keys.
 
 ## Additional Information
 
