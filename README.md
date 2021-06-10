@@ -41,7 +41,10 @@ All calls other than `scrapeIsChannelLive` require a valid API Key from Google. 
 - Go to [the Google developer dashboard](https://console.developers.google.com) and create a new project.
 - Go to the [the Google API library](https://console.developers.google.com/apis/library), find the ["YouTube Data API v3"](https://console.developers.google.com/apis/library/youtube.googleapis.com), and "Enable" it for your project.
 - In the "API & Services" menu, [go to "Credentials"](https://console.developers.google.com/apis/credentials), click "Create Credentials" and create a new API key.
-- (Optional) You can limit this API key to only work with the YouTube API, click on the API key, under "API restrictions" select "Restrict Key" and check the "YouTube Data API v3"
+- (Optional) You can limit this API key to only work with the YouTube API
+  - Click on the API key
+  - Under "API restrictions" select "Restrict Key"
+  - Check the "YouTube Data API v3"
 - Make sure the following URL works for you in your browser (change the key at the end!): `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=UCezJOfu7OtqGzd5xrP3q6WA&key=PutYourNewlyGeneratedKeyHere`
 
 Note: For the above URLs, you may need to select the correct project, there is a drop down on the top left.
