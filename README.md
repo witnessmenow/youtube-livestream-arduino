@@ -15,7 +15,7 @@ The Library supports the following features:
 - Checking if a channel is live
 - Check how many viewers a stream has
 - Retrieve live stream messages
-- Retrieve super-chats and super-stickers (Untested, no examples)
+- Retrieve super-chats and super-stickers (Untested)
 
 ### What needs to be added:
 
