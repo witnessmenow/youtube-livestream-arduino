@@ -138,11 +138,14 @@ void printSuperThing(ChatMessage message) {
   
   Serial.print(message.currency);
   Serial.print(" ");
-  long cents = message.amountMicros / 1000;
+  long cents = message.amountMicros / 10000;
   long centsOnly = cents % 100;
   
   Serial.print(cents / 100);
   Serial.print(".");
+  if(centsOnly < 10){
+    Serial.print("0");
+  }
   Serial.println(centsOnly);
 
   Serial.print("Tier: ");

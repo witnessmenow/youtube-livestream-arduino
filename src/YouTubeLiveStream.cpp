@@ -115,7 +115,7 @@ char* YouTubeLiveStream::getLiveVideoId(const char *channelId){
         // Parse JSON object
         #ifndef YOUTUBE_PRINT_JSON_PARSE
         DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
-        #elif
+        #else
         ReadLoggingStream loggingStream(*client, Serial);
         DeserializationError error = deserializeJson(doc, loggingStream, DeserializationOption::Filter(filter));
         #endif
@@ -171,7 +171,7 @@ LiveStreamDetails YouTubeLiveStream::getLiveChatId(const char *videoId){
         // Parse JSON object
         #ifndef YOUTUBE_PRINT_JSON_PARSE
         DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
-        #elif
+        #else
         ReadLoggingStream loggingStream(*client, Serial);
         DeserializationError error = deserializeJson(doc, loggingStream, DeserializationOption::Filter(filter));
         #endif
@@ -325,7 +325,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(const char *liveChatId, const c
         // Parse JSON object
         #ifndef YOUTUBE_PRINT_JSON_PARSE
         DeserializationError error = deserializeJson(doc, *client, DeserializationOption::Filter(filter));
-        #elif
+        #else
         ReadLoggingStream loggingStream(*client, Serial);
         DeserializationError error = deserializeJson(doc, loggingStream, DeserializationOption::Filter(filter));
         #endif
