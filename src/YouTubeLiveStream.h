@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 // so uncomment this if its not working for you.
 // NOTE: Do not use this option on live-streams, it will reveal your
 // private tokens!
-#define YOUTUBE_DEBUG 1
+//#define YOUTUBE_DEBUG 1
 
 // Comment out if you want to disable any serial output from this library (also comment out DEBUG and PRINT_JSON_PARSE)
 #define YOUTUBE_SERIAL_OUTPUT 1 
@@ -49,7 +49,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 #define YOUTUBE_TIMEOUT 2000
 
-#define YOUTUBE_MAX_RESULTS 10
+#define YOUTUBE_MAX_RESULTS 100
 
 #define YOUTUBE_MSG_CHAR_LENGTH 100 //Increase if MSG are being cut off
 #define YOUTUBE_NAME_CHAR_LENGTH 50
@@ -95,13 +95,15 @@ struct ChatMessage
 
 struct ChatResponses
 {
-    ChatMessage messages[YOUTUBE_MAX_RESULTS];
+    //ChatMessage messages[YOUTUBE_MAX_RESULTS];
     int totalResults;
     int resultsPerPage;
     long pollingIntervalMillis;
     int numMessages;
     bool error;
 };
+
+typedef bool (*processChatMessage)(ChatMessage chatMessageCallback);
 
 class YouTubeLiveStream
 {
@@ -112,7 +114,7 @@ class YouTubeLiveStream
     char* getLiveVideoId(const char *channelId);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
     LiveStreamDetails getLiveChatId(const char *videoId);
-    ChatResponses getChatMessages(const char *liveChatId, const char *part = "id,snippet,authorDetails");
+    ChatResponses getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, const char *part = "id,snippet,authorDetails");
     int portNumber = 443;
     bool _debug = true;
     Client *client;
@@ -132,6 +134,7 @@ class YouTubeLiveStream
 
     LiveStreamDetails liveStreamDetails;
     ChatResponses chatResponses;
+    ChatMessage chatMessage;
     const char *searchEndpointAndParams = 
         R"(/youtube/v3/search?eventType=live&part=id&channelId=%s&type=video&key=%s&maxResults=1&isMine=true)"
     ;

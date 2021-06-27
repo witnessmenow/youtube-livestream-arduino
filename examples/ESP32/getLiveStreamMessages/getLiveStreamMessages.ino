@@ -5,7 +5,7 @@
     Parts:
     D1 Mini ESP8266 * - http://s.click.aliexpress.com/e/uzFUnIe
 
- *  * = Affilate
+ *  * = Affiliate
 
     If you find what I do useful and would like to support me,
     please consider becoming a sponsor on Github
@@ -52,16 +52,18 @@ char password[] = "password"; // your network password
 //------- ---------------------- ------
 
 WiFiClientSecure client;
-ArduinoYoutubeVideoApi ytVideo(client, YT_API_TOKEN);
+YouTubeLiveStream ytVideo(client, YT_API_TOKEN);
 
-unsigned long delayBetweenRequests = 30000; // Time between requests (1 minute)
 unsigned long requestDueTime;               //time when request due
 
 LiveStreamDetails details;
-String liveId;
+char liveId[YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH];
 bool ledState = false;
-void setup() {
 
+char lastMessageReceived[YOUTUBE_MSG_CHAR_LENGTH];
+
+void setup() {
+  liveId[0] = '\0';
   Serial.begin(115200);
 
   pinMode(LED_PIN, OUTPUT);
@@ -107,7 +109,8 @@ void setup() {
         Serial.println(details.concurrentViewers);
         Serial.print("Chat Id: ");
         Serial.println(details.activeLiveChatId);
-        liveId = String(details.activeLiveChatId);
+        strcpy(liveId, details.activeLiveChatId);
+        //liveId = String(details.activeLiveChatId);
       } else {
         Serial.println("Error getting Live Stream Details");
       }
@@ -118,14 +121,24 @@ void setup() {
     Serial.println("Channel is NOT live");
   }
 }
-
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
   if (message.isChatModerator) {
     Serial.print("(mod)");
   }
+
+  if(message.isChatSponsor) {
+    Serial.print("(sponsor)");
+  }
+  
   Serial.print(": ");
   Serial.println(message.displayMessage);
+
+  if ( strcmp(message.displayMessage, "!led") == 0 )
+  {
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState);
+  }
 }
 
 void printSuperThing(ChatMessage message) {
@@ -135,15 +148,15 @@ void printSuperThing(ChatMessage message) {
   }
   Serial.print(": ");
   Serial.println(message.displayMessage);
-  
+
   Serial.print(message.currency);
   Serial.print(" ");
   long cents = message.amountMicros / 10000;
   long centsOnly = cents % 100;
-  
+
   Serial.print(cents / 100);
   Serial.print(".");
-  if(centsOnly < 10){
+  if (centsOnly < 10) {
     Serial.print("0");
   }
   Serial.println(centsOnly);
@@ -152,25 +165,38 @@ void printSuperThing(ChatMessage message) {
   Serial.println(message.tier);
 }
 
+bool processMessage(ChatMessage chatMessage) {
+  // Use the chat members details in this method
+  // or if you want to store them make sure
+  // you copy (using something like strcpy) them
+
+  switch (chatMessage.type)
+  {
+    case yt_message_type_text:
+      printMessage(chatMessage);
+
+      strcpy(lastMessageReceived, chatMessage.displayMessage); //DO NOT use lastMessageReceived = chatMessage.displayMessage, it won't work as you expect!
+      break;
+    case yt_message_type_superChat:
+    case yt_message_type_superSticker:
+      printSuperThing(chatMessage);
+      break;
+    default:
+      Serial.print("Unknown Message Type: ");
+      Serial.println(chatMessage.type);
+  }
+
+  // return false from this method if you want to
+  // stop parsing more messages.
+  return true;
+}
+
 void loop() {
-  if (liveId.length() > 0) {
+  if (liveId[0] != '\0') {
     if (millis() > requestDueTime)
     {
-      ChatResponses responses = ytVideo.getChatMessages((char *)liveId.c_str());
+      ChatResponses responses = ytVideo.getChatMessages(processMessage, liveId);
       if (!responses.error) {
-        for (int i = 0; i < responses.numMessages; i++) {
-          if(responses.messages[i].type == yt_message_type_text){
-            printMessage(responses.messages[i]);
-          } else if (responses.messages[i].type == yt_message_type_superChat || responses.messages[i].type == yt_message_type_superSticker){
-            printSuperThing(responses.messages[i]);
-            ledState = !ledState;
-            digitalWrite(LED_PIN, ledState);
-          } else {
-            Serial.print("Unknown Message Type: ");
-            Serial.println(responses.messages[i].type);
-          }
-
-        }
         Serial.println("done");
         Serial.print("Polling interval: ");
         Serial.println(responses.pollingIntervalMillis);
@@ -182,5 +208,4 @@ void loop() {
       }
     }
   }
-
 }

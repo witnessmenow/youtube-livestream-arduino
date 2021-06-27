@@ -54,13 +54,16 @@ char password[] = "password"; // your network password
 WiFiClientSecure client;
 ArduinoYoutubeVideoApi ytVideo(client, YT_API_TOKEN);
 
-unsigned long delayBetweenRequests = 30000; // Time between requests (1 minute)
 unsigned long requestDueTime;               //time when request due
 
 LiveStreamDetails details;
-String liveId;
-void setup() {
+char liveId[YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH];
+bool ledState = false;
 
+char lastMessageReceived[YOUTUBE_MSG_CHAR_LENGTH];
+
+void setup() {
+  liveId[0] = '\0';
   Serial.begin(115200);
 
   // Set WiFi to station mode and disconnect from an AP if it was Previously
@@ -94,6 +97,10 @@ void setup() {
   // uses too much of your daily quota.
   //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
 
+// This is the official way to get the videoID, but it
+  // uses too much of your daily quota.
+  //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
+
   if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, 20))
   {
     Serial.println("Channel is live");
@@ -108,7 +115,7 @@ void setup() {
         Serial.println(details.concurrentViewers);
         Serial.print("Chat Id: ");
         Serial.println(details.activeLiveChatId);
-        liveId = String(details.activeLiveChatId);
+        strcpy(liveId, details.activeLiveChatId);
       } else {
         Serial.println("Error getting Live Stream Details");
       }
@@ -119,6 +126,7 @@ void setup() {
     Serial.println("Channel is NOT live");
   }
 }
+
 
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
