@@ -53,7 +53,7 @@ int YouTubeLiveStream::makeGetRequest(const char *command, const char *host, con
     // Send HTTP request
     client->print(F("GET "));
     client->print(command);
-    client->println(F(" HTTP/1.1"));
+    client->println(F(" HTTP/1.0"));
 
     //Headers
     client->print(F("Host: "));
@@ -73,7 +73,7 @@ int YouTubeLiveStream::makeGetRequest(const char *command, const char *host, con
 
     client->println(F("Cache-Control: no-cache"));
 
-    client->println();
+    //client->println();
 
     if (client->println() == 0)
     {
@@ -271,7 +271,7 @@ bool YouTubeLiveStream::scrapeIsChannelLive(const char *channelId, char *videoId
 
 }
 
-ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, const char *part){
+ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, bool reverse, const char *part){
     char command[300];
 
     if(_tokenArrayLength > 0){
@@ -342,12 +342,13 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
             int numMessages = YOUTUBE_MAX_RESULTS > items.size() ? items.size() : YOUTUBE_MAX_RESULTS;
             int index = 0;
             for(int i = 0; i < numMessages ; i++){
-                //numMessages ++;
 
                 //Reverse index
-                //index = items.size() - 1 - i;
-                
-                index = i;
+                if(reverse){
+                    index = items.size() - 1 - i;
+                } else {
+                    index = i;
+                }
 
 #ifdef YOUTUBE_DEBUG
                 Serial.print(F("Message: "));
@@ -355,11 +356,12 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
 #endif
 
                 // init message back to blank
-                chatMessage.displayMessage[0] = '\0';
+                chatMessage.displayMessage = nullptr;
+                chatMessage.displayName = nullptr;
                 chatMessage.type = yt_message_type_unknown;
                 chatMessage.tier = -1;
                 chatMessage.amountMicros = -1;
-                chatMessage.currency[0] = '\0';
+                chatMessage.currency = nullptr;
 
                 // It's possible for users to not request snippet
                 if (items[index].containsKey("snippet")) {
@@ -373,8 +375,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                     if (strncmp(messageType, "textMessageEvent", 16) == 0)
                     {
                         chatMessage.type = yt_message_type_text;
-                        strncpy(chatMessage.displayMessage,  items[index]["snippet"]["displayMessage"].as<const char *>(), YOUTUBE_MSG_CHAR_LENGTH);
-                        chatMessage.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                        chatMessage.displayMessage = items[index]["snippet"]["displayMessage"].as<const char *>();
 
                     }
                     else if (strncmp(messageType, "superChatEvent", 14) == 0)
@@ -384,14 +385,13 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                         JsonObject superChatDetails = items[index]["snippet"]["superChatDetails"];
 
                         if(superChatDetails.containsKey("userComment")){
-                            strncpy(chatMessage.displayMessage,  superChatDetails["userComment"].as<const char *>(), YOUTUBE_MSG_CHAR_LENGTH);
-                            chatMessage.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                            chatMessage.displayMessage = superChatDetails["userComment"].as<const char *>();
                         }
                         
                         chatMessage.tier = superChatDetails["tier"].as<int>();
                         chatMessage.amountMicros = superChatDetails["amountMicros"].as<long>();
-                        strncpy(chatMessage.currency,  superChatDetails["currency"].as<const char *>(), YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
-                        chatMessage.currency[YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH -1] = '\0';
+
+                        chatMessage.currency = superChatDetails["currency"].as<const char *>();
                     } 
                     else if (strncmp(messageType, "superStickerEvent", 17) == 0)
                     {
@@ -400,14 +400,13 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                         JsonObject superStickerDetails = items[index]["snippet"]["superStickerDetails"];
 
                         if(superStickerDetails.containsKey("userComment")){
-                            strncpy(chatMessage.displayMessage,  superStickerDetails["userComment"].as<const char *>(), YOUTUBE_MSG_CHAR_LENGTH);
-                            chatMessage.displayMessage[YOUTUBE_MSG_CHAR_LENGTH -1] = '\0';
+                            chatMessage.displayMessage = superStickerDetails["userComment"].as<const char *>();
                         }                      
 
                         chatMessage.tier = superStickerDetails["tier"].as<int>();
                         chatMessage.amountMicros = superStickerDetails["amountMicros"].as<long>();
-                        strncpy(chatMessage.currency,  superStickerDetails["currency"].as<const char *>(), YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
-                        chatMessage.currency[YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH -1] = '\0';
+
+                        chatMessage.currency = superStickerDetails["currency"].as<const char *>();
                     }
                     else
                     {
@@ -418,8 +417,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
 
                  // It's possible for users to not request authorDetails, it's only needed if you need the name of person who sent the message.
                 if (items[index].containsKey("authorDetails")) {
-                    strncpy(chatMessage.displayName, items[index]["authorDetails"]["displayName"].as<const char *>(), YOUTUBE_NAME_CHAR_LENGTH);
-                    chatMessage.displayName[YOUTUBE_NAME_CHAR_LENGTH -1] = '\0';
+                    chatMessage.displayName = items[index]["authorDetails"]["displayName"].as<const char *>();
                     chatMessage.isChatModerator = items[index]["authorDetails"]["isChatModerator"].as<bool>();
                     chatMessage.isChatOwner = items[index]["authorDetails"]["isChatOwner"].as<bool>();
                     chatMessage.isChatSponsor = items[index]["authorDetails"]["isChatSponsor"].as<bool>();
@@ -428,7 +426,6 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                     #ifdef YOUTUBE_SERIAL_OUTPUT
                     Serial.println("no authorDetails");
                     #endif
-                    chatMessage.displayName[0] = '\0';
                     chatMessage.isChatModerator = false;
                     chatMessage.isChatOwner = false;
                     chatMessage.isChatSponsor = false;
@@ -485,11 +482,33 @@ void YouTubeLiveStream::skipHeaders(bool tossUnexpectedForJSON)
 
 int YouTubeLiveStream::getHttpStatusCode()
 {
-    // Check HTTP status
-    if(client->find("HTTP/1.1")){
-        int statusCode = client->parseInt();
-        return statusCode;
-    } 
+    char status[32] = {0};
+    client->readBytesUntil('\r', status, sizeof(status));
+    #ifdef YOUTUBE_DEBUG
+    Serial.print(F("Status: "));
+    Serial.println(status);
+    #endif
+
+    char *token;
+    token = strtok(status, " "); // https://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
+
+    #ifdef YOUTUBE_DEBUG
+    Serial.print(F("HTTP Version: "));
+    Serial.println(token);
+    #endif
+
+    if (token != NULL && (strcmp(token, "HTTP/1.0") == 0 || strcmp(token, "HTTP/1.1") == 0))
+    {
+        token = strtok(NULL, " ");
+        if(token != NULL){
+            #ifdef YOUTUBE_DEBUG
+            Serial.print(F("Status Code: "));
+            Serial.println(token);
+            #endif
+            return atoi(token);
+        }
+        
+    }
 
     return -1;
 }
@@ -521,11 +540,6 @@ void YouTubeLiveStream::closeClient()
 
 void YouTubeLiveStream::initStructs()
 {
-
-    chatMessage.displayMessage = (char *)malloc(YOUTUBE_MSG_CHAR_LENGTH);
-    chatMessage.displayName = (char *)malloc(YOUTUBE_NAME_CHAR_LENGTH);
-    chatMessage.currency = (char *)malloc(YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH);
-
     liveStreamDetails.concurrentViewers = (char *)malloc(YOUTUBE_VIEWERS_CHAR_LENGTH);
     liveStreamDetails.activeLiveChatId = (char *)malloc(YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH);
 
@@ -534,11 +548,6 @@ void YouTubeLiveStream::initStructs()
 // Not sure why this would ever be needed, but sure why not.
 void YouTubeLiveStream::destroyStructs()
 {
-
-    free(chatMessage.displayMessage);
-    free(chatMessage.displayName);
-    free(chatMessage.currency);
-
     free(liveStreamDetails.concurrentViewers);
     free(liveStreamDetails.activeLiveChatId);
 }

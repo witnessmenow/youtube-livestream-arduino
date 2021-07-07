@@ -1,9 +1,15 @@
 /*******************************************************************
     Display messages and Super chats/stickers from a live stream
-    on a given channel.
+    on a given channel. Uses multiple API keys to spread out
+    the quota.
+
+    Compatible Boards:
+	  - Any ESP8266 board
+	  - Any ESP32 board
 
     Parts:
     D1 Mini ESP8266 * - http://s.click.aliexpress.com/e/uzFUnIe
+    ESP32 Mini Kit (ESP32 D1 Mini) * - https://s.click.aliexpress.com/e/_AYPehO (pick the CP2104 Drive version)
 
  *  * = Affiliate
 
@@ -17,12 +23,19 @@
     Tindie: https://www.tindie.com/stores/brianlough/
     Twitter: https://twitter.com/witnessmenow
  *******************************************************************/
+
 #define ARDUINOJSON_DECODE_UNICODE 1
+
 // ----------------------------
 // Standard Libraries
 // ----------------------------
 
-#include <WiFi.h>
+#if defined(ESP8266)
+	#include <ESP8266WiFi.h>
+#elif defined(ESP32)
+	#include <WiFi.h>
+#endif
+
 #include <WiFiClientSecure.h>
 
 // ----------------------------
@@ -30,6 +43,11 @@
 // ----------------------------
 
 #include <YouTubeLiveStream.h>
+// Library for interacting with YouTube Livestreams
+
+// Only available on Github
+// https://github.com/witnessmenow/youtube-livestream-arduino
+
 
 #include <ArduinoJson.h>
 // Library used for parsing Json from the API responses
@@ -42,17 +60,23 @@
 char ssid[] = "SSID";         // your network SSID (name)
 char password[] = "password"; // your network password
 
-#define YT_API_TOKEN "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD"
+// You need 1 API key per roughly 2 hours of chat you plan to monitor 
+// Create multiple "applications", each will have their own quota
+#define NUM_API_KEYS 2
+const char *keys[NUM_API_KEYS] = {"AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD", "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCEEEEEEEEEE"};
 
 //#define CHANNEL_ID "UC8rQKO2XhPnvhnyV1eALa6g" //Bitluni's trash
 #define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
+//#define CHANNEL_ID "UCp_5PO66faM4dBFbFFBdPSQ" // Bitluni.
 
 #define LED_PIN 2
 
 //------- ---------------------- ------
 
+
+
 WiFiClientSecure client;
-YouTubeLiveStream ytVideo(client, YT_API_TOKEN);
+ArduinoYoutubeVideoApi ytVideo(client, keys, NUM_API_KEYS);
 
 unsigned long requestDueTime;               //time when request due
 
@@ -64,6 +88,7 @@ char lastMessageReceived[YOUTUBE_MSG_CHAR_LENGTH];
 
 void setup() {
   liveId[0] = '\0';
+
   Serial.begin(115200);
 
   pinMode(LED_PIN, OUTPUT);
@@ -110,7 +135,6 @@ void setup() {
         Serial.print("Chat Id: ");
         Serial.println(details.activeLiveChatId);
         strcpy(liveId, details.activeLiveChatId);
-        //liveId = String(details.activeLiveChatId);
       } else {
         Serial.println("Error getting Live Stream Details");
       }
@@ -121,6 +145,7 @@ void setup() {
     Serial.println("Channel is NOT live");
   }
 }
+
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
   if (message.isChatModerator) {

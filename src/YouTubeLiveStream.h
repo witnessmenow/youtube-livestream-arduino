@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_SERIAL_OUTPUT 1 
 
 // Prints the JSON received to serial (only use for debugging as it will be slow)
-// #define YOUTUBE_PRINT_JSON_PARSE 1
+//#define YOUTUBE_PRINT_JSON_PARSE 1
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -57,6 +57,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH 80
 #define YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH 4
 
+#define YOUTUBE_VIDEO_ID_LENGTH 11
+
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
 
@@ -82,11 +84,11 @@ struct LiveStreamDetails
 struct ChatMessage
 {
     YoutubeMessageType type;
-    char *displayMessage;
-    char *displayName;
+    const char *displayMessage;
+    const char *displayName;
     int tier;
     long amountMicros;
-    char *currency;
+    const char *currency;
     bool isChatModerator;
     bool isChatOwner;
     bool isChatSponsor;
@@ -114,7 +116,7 @@ class YouTubeLiveStream
     char* getLiveVideoId(const char *channelId);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
     LiveStreamDetails getLiveChatId(const char *videoId);
-    ChatResponses getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, const char *part = "id,snippet,authorDetails");
+    ChatResponses getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, bool reverse = false, const char *part = "id,snippet,authorDetails");
     int portNumber = 443;
     bool _debug = true;
     Client *client;

@@ -14,8 +14,8 @@ The Library supports the following features:
 
 - Checking if a channel is live
 - Check how many viewers a stream has
-- Retrieve live stream messages
-- Retrieve super-chats and super-stickers (Untested)
+- Retrieve live stream messages (Realistically ESP32 only)
+- Retrieve super-chats and super-stickers (Realistically ESP32 only)
 
 ### What needs to be added:
 

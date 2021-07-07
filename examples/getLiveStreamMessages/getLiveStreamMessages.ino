@@ -2,12 +2,17 @@
     Display messages and Super chats/stickers from a live stream
     on a given channel.
 
+    Compatible Boards:
+	  - Any ESP8266 board
+	  - Any ESP32 board
+
     Parts:
     D1 Mini ESP8266 * - http://s.click.aliexpress.com/e/uzFUnIe
+    ESP32 Mini Kit (ESP32 D1 Mini) * - https://s.click.aliexpress.com/e/_AYPehO (pick the CP2104 Drive version)
 
- *  * = Affilate
+ *  * = Affiliate
 
-    If you find what I do usefuland would like to support me,
+    If you find what I do useful and would like to support me,
     please consider becoming a sponsor on Github
     https://github.com/sponsors/witnessmenow/
 
@@ -17,12 +22,17 @@
     Tindie: https://www.tindie.com/stores/brianlough/
     Twitter: https://twitter.com/witnessmenow
  *******************************************************************/
-
+#define ARDUINOJSON_DECODE_UNICODE 1
 // ----------------------------
 // Standard Libraries
 // ----------------------------
 
-#include <ESP8266WiFi.h>
+#if defined(ESP8266)
+	#include <ESP8266WiFi.h>
+#elif defined(ESP32)
+	#include <WiFi.h>
+#endif
+
 #include <WiFiClientSecure.h>
 
 // ----------------------------
@@ -30,6 +40,10 @@
 // ----------------------------
 
 #include <YouTubeLiveStream.h>
+// Library for interacting with YouTube Livestreams
+
+// Only available on Github
+// https://github.com/witnessmenow/youtube-livestream-arduino
 
 
 #include <ArduinoJson.h>
@@ -45,14 +59,15 @@ char password[] = "password"; // your network password
 
 #define YT_API_TOKEN "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD"
 
-#define CHANNEL_ID "UCezJOfu7OtqGzd5xrP3q6WA"
+//#define CHANNEL_ID "UC8rQKO2XhPnvhnyV1eALa6g" //Bitluni's trash
+#define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
 
-#define LED_PIN 2
+#define LED_PIN LED_BUILTIN
 
 //------- ---------------------- ------
 
 WiFiClientSecure client;
-ArduinoYoutubeVideoApi ytVideo(client, YT_API_TOKEN);
+YouTubeLiveStream ytVideo(client, YT_API_TOKEN);
 
 unsigned long requestDueTime;               //time when request due
 
@@ -66,45 +81,45 @@ void setup() {
   liveId[0] = '\0';
   Serial.begin(115200);
 
-  // Set WiFi to station mode and disconnect from an AP if it was Previously
-  // connected
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, ledState);
+
+  // Set WiFi to 'station' mode and disconnect
+  // from the AP if it was previously connected
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
 
-  // Attempt to connect to Wifi network:
-  Serial.print("Connecting Wifi: ");
+  // Connect to the WiFi network
+  Serial.print("\nConnecting to WiFi: ");
   Serial.println(ssid);
+
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(500);
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+  Serial.println("\nWiFi connected!");
+  Serial.print("IP address: ");
   IPAddress ip = WiFi.localIP();
   Serial.println(ip);
 
- //TODO: At least Fingerprint
+
+  //TODO: Use certs
   client.setInsecure();
 
 
-  char videoId[20];
+  char videoId[YOUTUBE_VIDEO_ID_LENGTH + 1];
 
   // This is the official way to get the videoID, but it
   // uses too much of your daily quota.
   //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
 
-// This is the official way to get the videoID, but it
-  // uses too much of your daily quota.
-  //char *videoId = ytVideo.getLiveVideoId(CHANNEL_ID);
-
-  if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, 20))
+  if (ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, YOUTUBE_VIDEO_ID_LENGTH))
   {
     Serial.println("Channel is live");
     if (videoId != NULL) {
+      videoId[YOUTUBE_VIDEO_ID_LENGTH] = '\0';
       Serial.print("Video ID: ");
       Serial.println(videoId);
 
@@ -115,7 +130,11 @@ void setup() {
         Serial.println(details.concurrentViewers);
         Serial.print("Chat Id: ");
         Serial.println(details.activeLiveChatId);
-        strcpy(liveId, details.activeLiveChatId);
+
+        strncpy(liveId, details.activeLiveChatId, sizeof(liveId));
+        liveId[sizeof(liveId) - 1] = '\0';
+
+        //liveId = String(details.activeLiveChatId);
       } else {
         Serial.println("Error getting Live Stream Details");
       }
@@ -126,15 +145,24 @@ void setup() {
     Serial.println("Channel is NOT live");
   }
 }
-
-
 void printMessage(ChatMessage message) {
   Serial.print(message.displayName);
   if (message.isChatModerator) {
     Serial.print("(mod)");
   }
+
+  if (message.isChatSponsor) {
+    Serial.print("(sponsor)");
+  }
+
   Serial.print(": ");
   Serial.println(message.displayMessage);
+
+  if ( strcmp(message.displayMessage, "!led") == 0 )
+  {
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState);
+  }
 }
 
 void printSuperThing(ChatMessage message) {
@@ -144,15 +172,15 @@ void printSuperThing(ChatMessage message) {
   }
   Serial.print(": ");
   Serial.println(message.displayMessage);
-  
+
   Serial.print(message.currency);
   Serial.print(" ");
   long cents = message.amountMicros / 10000;
   long centsOnly = cents % 100;
-  
+
   Serial.print(cents / 100);
   Serial.print(".");
-  if(centsOnly < 10){
+  if (centsOnly < 10) {
     Serial.print("0");
   }
   Serial.println(centsOnly);
@@ -161,25 +189,44 @@ void printSuperThing(ChatMessage message) {
   Serial.println(message.tier);
 }
 
+bool processMessage(ChatMessage chatMessage) {
+  // Use the chat members details in this method
+  // or if you want to store them make sure
+  // you copy (using something like strcpy) them
+
+  switch (chatMessage.type)
+  {
+    case yt_message_type_text:
+      printMessage(chatMessage);
+
+      strncpy(lastMessageReceived, chatMessage.displayMessage, sizeof(lastMessageReceived)); //DO NOT use lastMessageReceived = chatMessage.displayMessage, it won't work as you expect!
+      lastMessageReceived[sizeof(lastMessageReceived) - 1] = '\0';
+      break;
+    case yt_message_type_superChat:
+    case yt_message_type_superSticker:
+      printSuperThing(chatMessage);
+      break;
+    default:
+      Serial.print("Unknown Message Type: ");
+      Serial.println(chatMessage.type);
+  }
+
+  // return false from this method if you want to
+  // stop parsing more messages.
+  return true;
+}
+
 void loop() {
-  if (liveId.length() > 0) {
+  if (liveId[0] != '\0') {
     if (millis() > requestDueTime)
     {
-      ChatResponses responses = ytVideo.getChatMessages((char *)liveId.c_str());
+      Serial.print("Live Chat Id: ");
+      Serial.println(liveId);
+      Serial.print("Pointer: ");
+      int ptr = (int) &liveId[0];
+      Serial.println(ptr);
+      ChatResponses responses = ytVideo.getChatMessages(processMessage, liveId);
       if (!responses.error) {
-        for (int i = 0; i < responses.numMessages; i++) {
-          if(responses.messages[i].type == yt_message_type_text){
-            printMessage(responses.messages[i]);
-          } else if (responses.messages[i].type == yt_message_type_superChat || responses.messages[i].type == yt_message_type_superSticker){
-            printSuperThing(responses.messages[i]);
-            ledState = !ledState;
-            digitalWrite(LED_PIN, ledState);
-          } else {
-            Serial.print("Unknown Message Type: ");
-            Serial.println(responses.messages[i].type);
-          }
-
-        }
         Serial.println("done");
         Serial.print("Polling interval: ");
         Serial.println(responses.pollingIntervalMillis);
@@ -191,5 +238,4 @@ void loop() {
       }
     }
   }
-
 }
