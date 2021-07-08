@@ -24,13 +24,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 // so uncomment this if its not working for you.
 // NOTE: Do not use this option on live-streams, it will reveal your
 // private tokens!
-#define YOUTUBE_DEBUG 1
+//#define YOUTUBE_DEBUG 1
 
 // Comment out if you want to disable any serial output from this library (also comment out DEBUG and PRINT_JSON_PARSE)
 #define YOUTUBE_SERIAL_OUTPUT 1 
 
 // Prints the JSON received to serial (only use for debugging as it will be slow)
-// #define YOUTUBE_PRINT_JSON_PARSE 1
+//#define YOUTUBE_PRINT_JSON_PARSE 1
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -49,13 +49,15 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
 #define YOUTUBE_TIMEOUT 2000
 
-#define YOUTUBE_MAX_RESULTS 10
+#define YOUTUBE_MAX_RESULTS 100
 
 #define YOUTUBE_MSG_CHAR_LENGTH 100 //Increase if MSG are being cut off
 #define YOUTUBE_NAME_CHAR_LENGTH 50
 #define YOUTUBE_VIEWERS_CHAR_LENGTH 20
 #define YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH 80
 #define YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH 4
+
+#define YOUTUBE_VIDEO_ID_LENGTH 12 // Actually 11, leaving room for null terminator
 
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
@@ -75,6 +77,7 @@ struct LiveStreamDetails
 {
     char *concurrentViewers;
     char *activeLiveChatId;
+    bool isLive;
     bool error;
 };
 
@@ -82,11 +85,11 @@ struct LiveStreamDetails
 struct ChatMessage
 {
     YoutubeMessageType type;
-    char *displayMessage;
-    char *displayName;
+    const char *displayMessage;
+    const char *displayName;
     int tier;
     long amountMicros;
-    char *currency;
+    const char *currency;
     bool isChatModerator;
     bool isChatOwner;
     bool isChatSponsor;
@@ -95,13 +98,16 @@ struct ChatMessage
 
 struct ChatResponses
 {
-    ChatMessage messages[YOUTUBE_MAX_RESULTS];
+    //ChatMessage messages[YOUTUBE_MAX_RESULTS];
     int totalResults;
     int resultsPerPage;
     long pollingIntervalMillis;
     int numMessages;
+    bool isStillLive;
     bool error;
 };
+
+typedef bool (*processChatMessage)(ChatMessage chatMessageCallback);
 
 class YouTubeLiveStream
 {
@@ -109,10 +115,10 @@ class YouTubeLiveStream
     YouTubeLiveStream(Client &client, const char *apiToken);
     YouTubeLiveStream(Client &client, const char **apiTokenArray, int tokenArrayLength);
     int makeGetRequest(const char *command, const char *host = YOUTUBE_API_HOST, const char *accept = "application/json", const char *cookie = NULL);
-    char* getLiveVideoId(const char *channelId);
+    bool getLiveVideoId(const char *channelId, char *videoIdOut, int videoIdOutSize);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
-    LiveStreamDetails getLiveChatId(const char *videoId);
-    ChatResponses getChatMessages(const char *liveChatId, const char *part = "id,snippet,authorDetails");
+    LiveStreamDetails getLiveStreamDetails(const char *videoId);
+    ChatResponses getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, bool reverse = false, const char *part = "id,snippet,authorDetails");
     int portNumber = 443;
     bool _debug = true;
     Client *client;
@@ -132,6 +138,7 @@ class YouTubeLiveStream
 
     LiveStreamDetails liveStreamDetails;
     ChatResponses chatResponses;
+    ChatMessage chatMessage;
     const char *searchEndpointAndParams = 
         R"(/youtube/v3/search?eventType=live&part=id&channelId=%s&type=video&key=%s&maxResults=1&isMine=true)"
     ;

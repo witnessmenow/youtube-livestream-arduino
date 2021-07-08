@@ -14,13 +14,8 @@ The Library supports the following features:
 
 - Checking if a channel is live
 - Check how many viewers a stream has
-- Retrieve live stream messages
-- Retrieve super-chats and super-stickers (Untested)
-
-### What needs to be added:
-
-- Example for checking the stream status of multiple channels
-- Improve examples to stop requesting messages when streams end
+- Retrieve live stream messages (Realistically ESP32 only)
+- Retrieve super-chats and super-stickers (Realistically ESP32 only)
 
 ## Setup Instructions
 
@@ -53,7 +48,7 @@ Note: For the above URLs, you may need to select the correct project, there is a
 
 An API key can actively monitor live chat constantly for just over **2 hours**, seeing as this isn't that long, this library supports using multiple API keys to spread out the quota (2 keys should get over 4 hours, 3 keys -> 6 hours etc). To create multiple keys, repeat the steps above, including creating a new project each time.
 
-Check out the [useMultipleTokens](examples/ESP32/useMultipleTokens/useMultipleTokens.ino) example to see how to use multiple keys.
+Check out the [getLiveStreamMessages](examples/ESP32/getLiveStreamMessages/getLiveStreamMessages.ino) example , there is code in the "Replace the following" section that shows how to use multiple keys.
 
 ## Additional Information
 
