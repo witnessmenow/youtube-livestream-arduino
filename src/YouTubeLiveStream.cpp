@@ -449,7 +449,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                     chatMessage.isVerified = false;
                 }
 
-                if(!chatMessageCallback(chatMessage)){
+                if(!chatMessageCallback(chatMessage, numMessages)){
                     //User has indicated they are finished.
                     break;
                 };               

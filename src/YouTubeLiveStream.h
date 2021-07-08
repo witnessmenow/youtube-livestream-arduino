@@ -107,7 +107,7 @@ struct ChatResponses
     bool error;
 };
 
-typedef bool (*processChatMessage)(ChatMessage chatMessageCallback);
+typedef bool (*processChatMessage)(ChatMessage chatMessageCallback, int numMessages);
 
 class YouTubeLiveStream
 {

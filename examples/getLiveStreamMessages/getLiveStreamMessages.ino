@@ -172,7 +172,11 @@ void printSuperThing(ChatMessage message) {
   Serial.println(message.tier);
 }
 
-bool processMessage(ChatMessage chatMessage) {
+bool processMessage(ChatMessage chatMessage, int numMessages) {
+
+  //Serial.print("Total Number of Messages");
+  //Serial.println(numMessages);
+
   // Use the chat members details in this method
   // or if you want to store them make sure
   // you copy (using something like strcpy) them
