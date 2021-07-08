@@ -87,7 +87,7 @@ int YouTubeLiveStream::makeGetRequest(const char *command, const char *host, con
     return statusCode;
 }
 
-char* YouTubeLiveStream::getLiveVideoId(const char *channelId){
+bool YouTubeLiveStream::getLiveVideoId(const char *channelId, char *videoIdOut, int videoIdOutSize){
     char command[250];
 
     if(_tokenArrayLength > 0){
@@ -121,10 +121,10 @@ char* YouTubeLiveStream::getLiveVideoId(const char *channelId){
         #endif
         if (!error)
         {
-            
-            char* videoId = (char *) doc["items"][0]["id"]["videoId"].as<const char *>();
+            strncpy(videoIdOut, doc["items"][0]["id"]["videoId"].as<const char *>(), videoIdOutSize);
+            videoIdOut[videoIdOutSize -1] = '\0';
             closeClient();
-            return videoId;
+            return true;
 
         }
         else
@@ -136,10 +136,10 @@ char* YouTubeLiveStream::getLiveVideoId(const char *channelId){
         }
     }
     closeClient();
-    return NULL;
+    return false;
 }
 
-LiveStreamDetails YouTubeLiveStream::getLiveChatId(const char *videoId){
+LiveStreamDetails YouTubeLiveStream::getLiveStreamDetails(const char *videoId){
     char command[250];
 
     if(_tokenArrayLength > 0){
@@ -181,11 +181,22 @@ LiveStreamDetails YouTubeLiveStream::getLiveChatId(const char *videoId){
 
             JsonObject liveStreamingDetails = doc["items"][0]["liveStreamingDetails"];
 
-            strncpy(liveStreamDetails.concurrentViewers, liveStreamingDetails["concurrentViewers"].as<const char *>(), YOUTUBE_VIEWERS_CHAR_LENGTH);
-            liveStreamDetails.concurrentViewers[YOUTUBE_VIEWERS_CHAR_LENGTH -1] = '\0';
+            if (liveStreamingDetails.containsKey("activeLiveChatId")){
+                strncpy(liveStreamDetails.activeLiveChatId,  liveStreamingDetails["activeLiveChatId"].as<const char *>(), YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH);
+                liveStreamDetails.activeLiveChatId[YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH -1] = '\0';
 
-            strncpy(liveStreamDetails.activeLiveChatId,  liveStreamingDetails["activeLiveChatId"].as<const char *>(), YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH);
-            liveStreamDetails.activeLiveChatId[YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH -1] = '\0';
+                liveStreamDetails.isLive = true;
+            } else {
+                liveStreamDetails.isLive = false; // Probably!?
+                liveStreamDetails.activeLiveChatId[0] = '\0';
+            }
+
+            if (liveStreamingDetails.containsKey("concurrentViewers")){
+                strncpy(liveStreamDetails.concurrentViewers, liveStreamingDetails["concurrentViewers"].as<const char *>(), YOUTUBE_VIEWERS_CHAR_LENGTH);
+                liveStreamDetails.concurrentViewers[YOUTUBE_VIEWERS_CHAR_LENGTH -1] = '\0';
+            } else {
+                liveStreamDetails.concurrentViewers[0] = '\0';
+            }
 
         }
         else
@@ -240,12 +251,14 @@ bool YouTubeLiveStream::scrapeIsChannelLive(const char *channelId, char *videoId
         } else if (videoIdOut != NULL){
             if (!client->find("{\"videoId\":\""))
             {
+                videoIdOut[0] = '\0';
                 #ifdef YOUTUBE_SERIAL_OUTPUT
                 Serial.println(F("Could not find videoID"));
                 #endif
                 channelIsLive = false;
             } else {
-                client->readBytesUntil('\"', videoIdOut, videoIdOutSize);
+                client->readBytesUntil('\"', videoIdOut, videoIdOutSize - 1); // leave room for null
+                videoIdOut[videoIdOutSize - 1] = '\0';
             }
         }
     } else {
@@ -291,14 +304,17 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
     #endif
 
     chatResponses.error = true;
+    chatResponses.isStillLive = true; //assume, we'll update if not
 
     // Get from https://arduinojson.org/v6/assistant/
     const size_t bufferSize = 30000;
-    if (makeGetRequest(command) == 200)
+    int statusCode = makeGetRequest(command);
+    if (statusCode == 200)
     {
         skipHeaders();
         StaticJsonDocument<272> filter;
         filter["pollingIntervalMillis"] = true;
+        filter["offlineAt"] = true;
         filter["nextPageToken"] = true;
 
         JsonObject filter_pageInfo = filter.createNestedObject("pageInfo");
@@ -332,6 +348,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
         if (!error)
         {
             chatResponses.error = false;
+            chatResponses.isStillLive = !doc.containsKey("offlineAt");
             const char* pageToken = doc["nextPageToken"];
             strcpy(nextPageToken, pageToken);
             chatResponses.pollingIntervalMillis = doc["pollingIntervalMillis"].as<long>();
@@ -445,6 +462,18 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
             Serial.print(F("deserializeJson() failed with code "));
             Serial.println(error.c_str());
             #endif
+        }
+    } else if(statusCode == 403) {
+        if (client->find("\"reason\": \"")){
+            char errorMessage[100] = {0};
+            client->readBytesUntil('"', errorMessage, sizeof(errorMessage));
+            if(strcmp(errorMessage, "liveChatEnded") == 0)
+            {
+                #ifdef YOUTUBE_SERIAL_OUTPUT
+                Serial.print(F("Live Stream is no longer live"));
+                #endif
+                chatResponses.isStillLive = false;
+            }
         }
     }
     closeClient();

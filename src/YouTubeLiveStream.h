@@ -57,7 +57,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #define YOUTUBE_LIVE_CHAT_ID_CHAR_LENGTH 80
 #define YOUTUBE_LIVE_CHAT_CURRENCY_LENGTH 4
 
-#define YOUTUBE_VIDEO_ID_LENGTH 11
+#define YOUTUBE_VIDEO_ID_LENGTH 12 // Actually 11, leaving room for null terminator
 
 #define YOUTUBE_VIDEOS_ENDPOINT "/youtube/v3/videos"
 #define YOUTUBE_LIVECHAT_MESSAGES_ENDPOINT "/youtube/v3/liveChat/messages"
@@ -77,6 +77,7 @@ struct LiveStreamDetails
 {
     char *concurrentViewers;
     char *activeLiveChatId;
+    bool isLive;
     bool error;
 };
 
@@ -102,6 +103,7 @@ struct ChatResponses
     int resultsPerPage;
     long pollingIntervalMillis;
     int numMessages;
+    bool isStillLive;
     bool error;
 };
 
@@ -113,9 +115,9 @@ class YouTubeLiveStream
     YouTubeLiveStream(Client &client, const char *apiToken);
     YouTubeLiveStream(Client &client, const char **apiTokenArray, int tokenArrayLength);
     int makeGetRequest(const char *command, const char *host = YOUTUBE_API_HOST, const char *accept = "application/json", const char *cookie = NULL);
-    char* getLiveVideoId(const char *channelId);
+    bool getLiveVideoId(const char *channelId, char *videoIdOut, int videoIdOutSize);
     bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
-    LiveStreamDetails getLiveChatId(const char *videoId);
+    LiveStreamDetails getLiveStreamDetails(const char *videoId);
     ChatResponses getChatMessages(processChatMessage chatMessageCallback, const char *liveChatId, bool reverse = false, const char *part = "id,snippet,authorDetails");
     int portNumber = 443;
     bool _debug = true;
