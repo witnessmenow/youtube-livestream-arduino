@@ -48,7 +48,15 @@ Note: For the above URLs, you may need to select the correct project, there is a
 
 An API key can actively monitor live chat constantly for just over **2 hours**, seeing as this isn't that long, this library supports using multiple API keys to spread out the quota (2 keys should get over 4 hours, 3 keys -> 6 hours etc). To create multiple keys, repeat the steps above, including creating a new project each time.
 
-Check out the [getLiveStreamMessages](examples/ESP32/getLiveStreamMessages/getLiveStreamMessages.ino) example , there is code in the "Replace the following" section that shows how to use multiple keys.
+
+To use multiple API keys, use the following code. Add as many API keys as needed to the array, just make sure `NUM_API_KEYS` matches. The Library will automatically rotate the keys each request.
+
+```
+//#define NUM_API_KEYS 2
+//const char *keys[NUM_API_KEYS] = {"AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCDDDDDDDDDDD", "AAAAAAAAAABBBBBBBBBBBCCCCCCCCCCCEEEEEEEEEE"};
+
+YouTubeLiveStream ytVideo(client, keys, NUM_API_KEYS);
+```
 
 ## Additional Information
 

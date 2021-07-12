@@ -43,6 +43,8 @@
 // Only available on Github
 // https://github.com/witnessmenow/youtube-livestream-arduino
 
+#include <YouTubeLiveStreamCert.h> // Comes with above, For HTTPS certs if you need them
+
 
 #include <ArduinoJson.h>
 // Library used for parsing Json from the API responses
@@ -104,7 +106,7 @@ void setup() {
   Serial.println(ip);
 
 
-  //TODO: Use certs
+  // NOTE: See "usingHTTPSCerts" example for how to verify the server you are talking to.
   client.setInsecure();
 
 }

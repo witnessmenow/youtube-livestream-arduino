@@ -449,7 +449,7 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
                     chatMessage.isVerified = false;
                 }
 
-                if(!chatMessageCallback(chatMessage, numMessages)){
+                if(!chatMessageCallback(chatMessage, i, numMessages)){
                     //User has indicated they are finished.
                     break;
                 };               
@@ -470,9 +470,12 @@ ChatResponses YouTubeLiveStream::getChatMessages(processChatMessage chatMessageC
             if(strcmp(errorMessage, "liveChatEnded") == 0)
             {
                 #ifdef YOUTUBE_SERIAL_OUTPUT
-                Serial.print(F("Live Stream is no longer live"));
+                Serial.println(F("Live Stream is no longer live"));
                 #endif
                 chatResponses.isStillLive = false;
+            } else {
+                Serial.print(F("YT API Error: "));
+                Serial.println(errorMessage);
             }
         }
     }

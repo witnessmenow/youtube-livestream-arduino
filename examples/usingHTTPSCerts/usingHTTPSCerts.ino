@@ -1,4 +1,15 @@
 /*******************************************************************
+    
+    This is getLiveStreamMessagesExample but using certs to validate the HTTPs
+    endpoints.
+
+    We have a complication with this though, this library connects to youtube.com 
+    and the youtube api, which are on different servers.
+  
+    We will default to API cert and swap in the youtube cert when needed, then swap back.
+
+    NOTE: setInsecure is faster, but doesn't verify the server is who you expect.
+    
     Display messages and Super chats/stickers from a live stream
     on a given channel.
 
@@ -130,8 +141,17 @@ void setup() {
   Serial.println(ip);
 
 
-  // NOTE: See "usingHTTPSCerts" example for how to verify the server you are talking to.
-  client.setInsecure();
+// Handle HTTPS Server verification
+// setInsecture is faster, but doesn't verify who you are talking to
+//client.setInsecure();
+#if defined(ESP8266)
+  client.setFingerprint(YOUTUBE_API_FINGERPRINT) // These will change somewhat regularly 
+  // More details in this video: https://www.youtube.com/watch?v=HUjFMVOpXBM
+#elif defined(ESP32)
+  //client.setInsecure(); 
+
+  client.setCACert(youtubeApiCert); // This is the cert for the API 
+#endif
 
 }
 
@@ -221,6 +241,17 @@ void getVideoId() {
   // uses too much of your daily quota.
   //haveVideoId = ytVideo.getLiveVideoId(CHANNEL_ID, videoId, YOUTUBE_VIDEO_ID_LENGTH);
 
+
+  // Need to verify a different server before making the request. 
+  // We don't need to do this if using "client.setInsecure();" in all places
+  // FYI - I really feel client.setInsecure would be ok here...
+  //client.setInsecure(); 
+#if defined(ESP8266)
+  client.setFingerprint(YOUTUBE_FINGERPRINT);
+#elif defined(ESP32)
+  client.setCACert(youtubeCert); // This is the cert for youtube.com 
+#endif
+
   haveVideoId = ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, YOUTUBE_VIDEO_ID_LENGTH);
   if (haveVideoId) {
     Serial.println("Channel is live");
@@ -229,6 +260,13 @@ void getVideoId() {
   } else {
     Serial.println("Channel does not seem to be live");
   }
+
+  // getting ready to make requests to the API again.
+#if defined(ESP8266)
+  client.setFingerprint(YOUTUBE_API_FINGERPRINT);
+#elif defined(ESP32)
+  client.setCACert(youtubeApiCert); // This is the cert for the API 
+#endif
 }
 
 // This gets the Live Chat ID of a live stream on a given Video ID.
