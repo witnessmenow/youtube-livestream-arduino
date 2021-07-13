@@ -98,7 +98,6 @@ struct ChatMessage
 
 struct ChatResponses
 {
-    //ChatMessage messages[YOUTUBE_MAX_RESULTS];
     int totalResults;
     int resultsPerPage;
     long pollingIntervalMillis;
