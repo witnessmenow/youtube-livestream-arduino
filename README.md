@@ -57,39 +57,6 @@ YouTubeLiveStream ytVideo(client, keys, NUM_API_KEYS);
 
 ## Library Usage
 
-### Check if a channel is Live / get video id
-
-```
-bool scrapeIsChannelLive(const char *channelId, char *videoIdOut = NULL, int videoIdOutSize = 0);
-```
-
-This scrapes the channel's YouTube page to check if the channel is live. `videoIdOut` will be updated with the video ID of the stream if the channel is live, but is optional.
-
-#### Example
-
-```
-#define CHANNEL_ID "UCSJ4gkVC6NrvII8umztf0Ow" //Lo-fi beats (basically always live)
-char videoId[YOUTUBE_VIDEO_ID_LENGTH];
-bool haveVideoId = false;
-
-void getVideoId() {
-  // This is the official way to get the videoID, but it
-  // uses too much of your daily quota.
-  //haveVideoId = ytVideo.getLiveVideoId(CHANNEL_ID, videoId, YOUTUBE_VIDEO_ID_LENGTH);
-
-  haveVideoId = ytVideo.scrapeIsChannelLive(CHANNEL_ID, videoId, YOUTUBE_VIDEO_ID_LENGTH);
-  if (haveVideoId) {
-    Serial.println("Channel is live");
-    Serial.print("Video ID: ");
-    Serial.println(videoId);
-  } else {
-    Serial.println("Channel does not seem to be live");
-  }
-}
-```
-
-## Library Usage
-
 See examples for more context on how to use these methods.
 
 ### Initializing the library
