@@ -71,6 +71,8 @@ int YouTubeLiveStream::makeGetRequest(const char *command, const char *host, con
         client->println(cookie);
     } 
 
+    // Since we parse text, need to tell Youtube we want english
+    client->println(F("Accept-Language: en"));
     client->println(F("Cache-Control: no-cache"));
 
     //client->println();
