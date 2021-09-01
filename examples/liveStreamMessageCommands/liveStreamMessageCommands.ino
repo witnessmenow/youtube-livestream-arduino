@@ -167,7 +167,7 @@ bool processMessage(ChatMessage chatMessage, int index, int numMessages) {
       //Possible to act on a message
       if ( strcmp(chatMessage.displayMessage, "!on") == 0 )
       {
-        Serial.print("Received !on from ")
+        Serial.print("Received !on from ");
         Serial.println(chatMessage.displayName);
         ledState = false; // Built-in LED is active Low
         digitalWrite(LED_PIN, ledState);
@@ -175,7 +175,7 @@ bool processMessage(ChatMessage chatMessage, int index, int numMessages) {
         return false;
       } else if ( strcmp(chatMessage.displayMessage, "!off") == 0 )
       {
-        Serial.print("Received !off from ")
+        Serial.print("Received !off from ");
         Serial.println(chatMessage.displayName);
         ledState = true; // Built-in LED is active Low
         digitalWrite(LED_PIN, ledState);
